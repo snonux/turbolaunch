@@ -100,6 +100,10 @@ sleep 4; dump; shot home_grid
 expect_focus "Home returns to TurboLaunch" "$app"
 if grep -q 'sttngs' "$out/ui.xml"; then fail "search cleared on Home"; else pass "search cleared on Home"; fi
 expect_ui "Settings has a home cell" 'Settings'
+# DEBUG (temporary): what the screen and the accessibility tree say.
+echo "DEBUG wm: $(adb shell wm size | tr '\n' ' ') $(adb shell wm density | tr '\n' ' ')"
+grep -o '<node [^>]*>' "$out/ui.xml" | grep -o 'content-desc="[^"]*"\|bounds="[^"]*"\|class="[^"]*"\|clickable="[^"]*"' | paste -sd' ' | sed 's/class=/\nclass=/g' | sed 's/^/DEBUG /'
+echo "DEBUG PNG $(base64 -w0 "$out/$(ls "$out" | grep home_grid)")"
 
 # 5. Tapping the cell launches it again.
 tap_on "Settings" && sleep 5

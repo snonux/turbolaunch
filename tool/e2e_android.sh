@@ -29,7 +29,7 @@ import re, sys
 xml, want = open(sys.argv[1]).read(), sys.argv[2]
 for node in re.findall(r'<node [^>]*>', xml):
     attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', node))
-    if want in attrs.get('text', '') or want in attrs.get('content-desc', '') or want in attrs.get('hint', ''):
+    if want == attrs.get('resource-id') or any(want in attrs.get(k, '') for k in ('text', 'content-desc', 'hint')):
         x1, y1, x2, y2 = map(int, re.findall(r'\d+', attrs['bounds']))
         print((x1 + x2) // 2, (y1 + y2) // 2)
         break
@@ -69,7 +69,7 @@ sleep 8
 # 1. TurboLaunch is the home screen: clock line, search box, empty grid.
 dump; shot home
 expect_focus "home screen is TurboLaunch" "$app"
-expect_ui "search box shown" "Search apps"
+expect_ui "search box shown" 'resource-id="search"'
 expect_ui "clock line shows the battery" '[0-9]%'
 if adb logcat -d | grep -q 'TurboLaunch cold start: [0-9]* ms'; then
   pass "cold start logged: $(adb logcat -d | grep -o 'TurboLaunch cold start: [0-9]* ms' | tail -1)"
@@ -78,7 +78,7 @@ else
 fi
 
 # 2. Tapping the search box lists the device's apps.
-tap_on "Search apps" && sleep 2
+tap_on search && sleep 2
 dump; shot all_apps
 expect_ui "apps listed (Camera, Chrome or Clock)" 'Camera\|Chrome\|Clock'
 
@@ -131,12 +131,19 @@ fi
 tap_on "TurboLaunch settings" && sleep 3
 dump; shot settings
 expect_ui "settings open" 'Set as home app'
+expect_ui "cold start shown" 'ms from process start'
+# The app pair section is below the fold; uiautomator only dumps what shows.
+read -r w h < <(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | tr x ' ')
+for _ in 1 2 3 4 5 6; do
+  grep -q 'Accessibility service' "$out/ui.xml" && break
+  adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300; sleep 1; dump
+done
+shot settings_pair
 expect_ui "accessibility service listed" 'Accessibility service'
 if grep -q 'Off: tap to open' "$out/ui.xml"; then fail "accessibility service seen as on"; else pass "accessibility service seen as on"; fi
-expect_ui "cold start shown" 'ms from process start'
 adb shell input keyevent KEYCODE_BACK
 sleep 2; dump
-expect_ui "Back returns to the list" 'Search apps'
+expect_ui "Back returns home" 'resource-id="search"'
 
 # 9. No crash anywhere.
 adb logcat -d >"$out/logcat.txt"

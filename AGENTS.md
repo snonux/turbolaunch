@@ -124,37 +124,15 @@ git-ignored and optional; without it release builds use the debug key and say
 so. Keep the key at `keys/turbolaunch-release.jks` (git-ignored) and back it
 and `key.properties` up in `~/.foostore-export/`.
 
-### One-time setup (Paul)
+### Signing and secrets (done)
 
-An agent's token cannot write `.github/workflows/`, so the release workflow
-waits at `ci/workflows/release.yml`. Create the key, move the workflow and set
-the secrets (fish):
+The workflows live in `.github/workflows/` (an agent's token cannot write
+there; Paul moves new ones). The release key and the four `ANDROID_*`
+secrets are set up Quicklog-style, with the key in Paul's local foostore. An
+agent never creates or replaces the key without Paul's OK.
 
-```fish
-mkdir -p keys
-set pw (openssl rand -hex 16)
-keytool -genkeypair -noprompt -keystore keys/turbolaunch-release.jks -storetype PKCS12 \
-  -alias turbolaunch -keyalg RSA -keysize 4096 -validity 36500 \
-  -dname "CN=TurboLaunch" -storepass $pw -keypass $pw
-printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=turbolaunch\nkeyPassword=%s\n' \
-  (realpath keys/turbolaunch-release.jks) $pw $pw > android/key.properties
-chmod 600 keys/turbolaunch-release.jks android/key.properties
-cp keys/turbolaunch-release.jks android/key.properties ~/.foostore-export/
-
-git mv ci/workflows/release.yml .github/workflows/
-git commit -m "Enable release workflow"; and git push
-
-function get; sed -n "s/^$argv[1]=//p" android/key.properties; end
-base64 -w0 (get storeFile) | gh secret set ANDROID_KEYSTORE
-gh secret set ANDROID_KEY_ALIAS --body (get keyAlias)
-gh secret set ANDROID_KEYSTORE_PASSWORD --body (get storePassword)
-gh secret set ANDROID_KEY_PASSWORD --body (get keyPassword)
-```
-
-Optionally `gh secret set FDROID_DISPATCH_TOKEN` (Contents read/write on
-snonux/fdroid) so a release shows up at once. Then a release is: bump
-`version:`, write the three changelogs, commit, `git tag vX.Y.Z; and git push;
-and git push --tags`.
+A release is: bump `version:`, write the three changelogs, commit, `git tag
+vX.Y.Z; and git push; and git push --tags`.
 
 ## Icons
 

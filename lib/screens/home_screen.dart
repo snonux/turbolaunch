@@ -197,35 +197,40 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         children: [
           Expanded(
-            child: TextField(
-              key: const Key('search'),
-              controller: _search,
-              focusNode: _focus,
-              autocorrect: false,
-              enableSuggestions: false,
-              textInputAction: TextInputAction.go,
-              onChanged: (v) => _c.query = v,
-              onSubmitted: (_) {
-                _focus.unfocus();
-                _c.launchTopMatch();
-              },
-              decoration: InputDecoration(
-                hintText: 'Search apps',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searching
-                    ? IconButton(
-                        key: const Key('close-search'),
-                        tooltip: 'Close search',
-                        icon: const Icon(Icons.close),
-                        onPressed: () {
-                          _c.query = '';
-                          _focus.unfocus();
-                        },
-                      )
-                    : null,
-                filled: true,
-                fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.9),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
+            // The identifier is the field's resource-id on Android, which
+            // tool/e2e_android.sh finds it by; the hint text is not dumped.
+            child: Semantics(
+              identifier: 'search',
+              child: TextField(
+                key: const Key('search'),
+                controller: _search,
+                focusNode: _focus,
+                autocorrect: false,
+                enableSuggestions: false,
+                textInputAction: TextInputAction.go,
+                onChanged: (v) => _c.query = v,
+                onSubmitted: (_) {
+                  _focus.unfocus();
+                  _c.launchTopMatch();
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search apps',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searching
+                      ? IconButton(
+                          key: const Key('close-search'),
+                          tooltip: 'Close search',
+                          icon: const Icon(Icons.close),
+                          onPressed: () {
+                            _c.query = '';
+                            _focus.unfocus();
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.9),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
+                ),
               ),
             ),
           ),

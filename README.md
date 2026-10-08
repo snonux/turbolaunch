@@ -7,6 +7,12 @@ Home, type two or three letters, hit Enter, and the app opens. No tracking,
 no Google Play Services; the only network use will be optional sync to your
 own S3 bucket.
 
+<p align="center">
+  <img src="docs/screenshots/home.png" width="270" alt="Home screen: clock and battery on top, a grid of the most-launched apps near the bottom, the search box below">
+  &nbsp;
+  <img src="docs/screenshots/search.png" width="270" alt="Typing &quot;te&quot; lists Termux, Notes, AntennaPod, LibreTube and app shortcuts, matched letters highlighted">
+</p>
+
 **Status: phase 3 of 5 (profiles and polish).** The F-Droid release and S3
 sync follow; see the roadmap in [AGENTS.md](AGENTS.md#roadmap).
 

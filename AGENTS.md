@@ -154,6 +154,13 @@ agent never creates or replaces the key without Paul's OK.
 A release is: bump `version:`, write the three changelogs, commit, `git tag
 vX.Y.Z; and git push; and git push --tags`.
 
+## Screenshots
+
+The README screenshots in `docs/screenshots/` come from the Linux build at
+phone size, with the demo apps, drawn stand-in icons and a gradient in place
+of the wallpaper. Re-render them with `tool/readme_shots.sh` (needs
+`xvfb-run`) after a visible change. They hold no personal data.
+
 ## Icons
 
 `assets/logo/*.svg` are the sources (the speed T). The PNGs are rendered

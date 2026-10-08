@@ -179,6 +179,8 @@ if grep -q 'package="com.android.systemui"' "$out/ui.xml"; then
 else
   fail "swipe down opens notifications ($(focused | tr '\n' ' '))"
   adb logcat -d | grep 'TurboLaunch' | tail -5
+  echo "DEBUG ui.xml:"; head -c 3000 "$out/ui.xml"; echo
+  echo "DEBUG screenshot:"; base64 -w0 "$out/$(printf %02d $step)_shade.png"; echo
 fi
 adb shell cmd statusbar collapse
 sleep 2

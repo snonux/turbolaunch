@@ -140,7 +140,9 @@ class _HomeScreenState extends State<HomeScreen> {
       // Its scroll actions would merge every cell into one semantics node,
       // so TalkBack (and uiautomator) could no longer tell the apps apart.
       excludeFromSemantics: true,
+      onVerticalDragStart: (d) => debugPrint('TurboLaunch DEBUG drag start ${d.globalPosition}'),
       onVerticalDragEnd: (d) {
+        debugPrint('TurboLaunch DEBUG drag end ${d.primaryVelocity}');
         if ((d.primaryVelocity ?? 0) > 300) _c.source.expandNotifications();
       },
       child: child,

@@ -8,9 +8,9 @@
 #
 #   home.png search.png menu.png settings.png stats.png search.mp4
 #
-# With SHOTS_TO_LOG=1 every file is also printed base64-encoded between
-# "=== SHOT name" and "=== END" lines, so the files can be taken from a CI
-# log when its artifacts are out of reach.
+# With SHOTS_TO_LOG=1 every file is also printed base64-encoded, in long
+# lines between "=== SHOT name" and "=== END", so the files can be taken
+# from the tail of a CI log when its artifacts are out of reach.
 #
 #   tool/shots_android.sh
 set -euo pipefail
@@ -66,8 +66,10 @@ launch() {
 adb shell wm size 720x1600
 adb shell wm density 280
 adb shell settings put global sysui_demo_allowed 1
+sleep 2
 demo() { adb shell am broadcast -a com.android.systemui.demo -e command "$@" >/dev/null; }
 demo enter
+sleep 1
 demo clock -e hhmm 0942
 demo battery -e level 100 -e plugged false
 demo network -e wifi show -e level 4 -e mobile show -e level 4 -e datatype none
@@ -132,7 +134,7 @@ rm -f "$out/ui.xml"
 if [ "${SHOTS_TO_LOG:-}" = 1 ]; then
   for f in "$out"/*; do
     echo "=== SHOT $(basename "$f")"
-    base64 -w 120 "$f"
+    base64 -w 16000 "$f"
     echo "=== END"
   done
 fi

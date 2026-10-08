@@ -2,6 +2,7 @@ package org.buetow.turbolaunch
 
 import android.accessibilityservice.AccessibilityService
 import android.app.Activity
+import android.app.WallpaperManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -11,12 +12,16 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.net.Uri
+import android.os.BatteryManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
 import android.os.SystemClock
 import android.os.UserHandle
 import android.os.UserManager
+import android.provider.MediaStore
 import android.provider.Settings
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -39,7 +44,8 @@ class LauncherPlatformPlugin :
     ActivityAware,
     MethodChannel.MethodCallHandler,
     EventChannel.StreamHandler,
-    PluginRegistry.NewIntentListener {
+    PluginRegistry.NewIntentListener,
+    PluginRegistry.ActivityResultListener {
     private lateinit var context: Context
     private lateinit var launcherApps: LauncherApps
     private lateinit var userManager: UserManager
@@ -50,6 +56,10 @@ class LauncherPlatformPlugin :
     private var activityBinding: ActivityPluginBinding? = null
     private val main = Handler(Looper.getMainLooper())
     private val worker: ExecutorService = Executors.newFixedThreadPool(2)
+
+    // The wallpaper pick in flight: which screens to set, and who to answer.
+    private var wallpaperFlags = 0
+    private var wallpaperResult: MethodChannel.Result? = null
 
     private val packageCallback =
         object : LauncherApps.Callback() {
@@ -90,10 +100,12 @@ class LauncherPlatformPlugin :
         activity = binding.activity
         activityBinding = binding
         binding.addOnNewIntentListener(this)
+        binding.addActivityResultListener(this)
     }
 
     override fun onDetachedFromActivity() {
         activityBinding?.removeOnNewIntentListener(this)
+        activityBinding?.removeActivityResultListener(this)
         activityBinding = null
         activity = null
     }
@@ -137,6 +149,22 @@ class LauncherPlatformPlugin :
             "openAccessibilitySettings" -> result.success(startSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             "openHomeSettings" -> result.success(startSettings(Settings.ACTION_HOME_SETTINGS))
             "launchPair" -> launchPair(call.key("first"), call.key("second"), result)
+            "battery" ->
+                result.success(
+                    context.getSystemService(BatteryManager::class.java)
+                        .getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY),
+                )
+            "uninstall" -> result.success(uninstall(call.key()))
+            "shortcuts" -> background(result) { shortcuts() }
+            "startShortcut" ->
+                result.success(
+                    startShortcut(
+                        call.argument<String>("package"),
+                        call.argument<String>("id"),
+                        call.argument<Number>("userSerial")?.toLong(),
+                    ),
+                )
+            "pickWallpaper" -> pickWallpaper(call.argument<String>("target") ?: "home", result)
             else -> result.notImplemented()
         }
     }
@@ -254,8 +282,112 @@ class LauncherPlatformPlugin :
         }, PAIR_STEP_MILLIS)
     }
 
+    private fun uninstall(key: AppKey?): Boolean {
+        if (key == null) return false
+        return try {
+            val intent =
+                Intent(Intent.ACTION_DELETE, Uri.fromParts("package", key.packageName, null))
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            (activity ?: context).startActivity(intent)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Every app's long-press shortcuts, in every profile. Android only shows
+     * them to the default home app, so this is empty until TurboLaunch is it.
+     */
+    private fun shortcuts(): List<Map<String, Any>> {
+        if (!launcherApps.hasShortcutHostPermission()) return emptyList()
+        val query =
+            LauncherApps.ShortcutQuery().setQueryFlags(
+                LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or
+                    LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
+                    LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED,
+            )
+        return launcherApps.profiles.flatMap { user ->
+            val serial = userManager.getSerialNumberForUser(user)
+            val list =
+                try {
+                    launcherApps.getShortcuts(query, user) ?: emptyList()
+                } catch (e: Exception) {
+                    emptyList()
+                }
+            list.filter { it.isEnabled }.map { info ->
+                mapOf(
+                    "package" to info.`package`,
+                    "id" to info.id,
+                    "userSerial" to serial,
+                    "label" to (info.shortLabel ?: info.longLabel ?: info.id).toString(),
+                )
+            }
+        }
+    }
+
+    private fun startShortcut(packageName: String?, id: String?, serial: Long?): Boolean {
+        if (packageName == null || id == null || serial == null) return false
+        val user = userManager.getUserForSerialNumber(serial) ?: return false
+        return try {
+            launcherApps.startShortcut(packageName, id, null, null, user)
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Lets the user pick an image with the system photo picker (no storage
+     * permission) and sets it as the home, lock or both wallpapers. Answers
+     * true when set, false on failure, null when the user cancelled.
+     */
+    private fun pickWallpaper(target: String, result: MethodChannel.Result) {
+        val host = activity ?: return result.success(false)
+        if (wallpaperResult != null) return result.success(false)
+        wallpaperFlags =
+            when (target) {
+                "lock" -> WallpaperManager.FLAG_LOCK
+                "both" -> WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK
+                else -> WallpaperManager.FLAG_SYSTEM
+            }
+        val intent =
+            if (Build.VERSION.SDK_INT >= 33) {
+                Intent(MediaStore.ACTION_PICK_IMAGES)
+            } else {
+                Intent(Intent.ACTION_GET_CONTENT).setType("image/*").addCategory(Intent.CATEGORY_OPENABLE)
+            }
+        wallpaperResult = result
+        try {
+            host.startActivityForResult(intent, WALLPAPER_REQUEST)
+        } catch (e: Exception) {
+            wallpaperResult = null
+            result.success(false)
+        }
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode != WALLPAPER_REQUEST) return false
+        val result = wallpaperResult ?: return true
+        wallpaperResult = null
+        val uri = data?.data
+        if (resultCode != Activity.RESULT_OK || uri == null) {
+            result.success(null)
+            return true
+        }
+        val flags = wallpaperFlags
+        background(result) {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                WallpaperManager.getInstance(context).setStream(stream, null, true, flags)
+                true
+            } ?: false
+        }
+        return true
+    }
+
     private companion object {
         // Time for the window manager to settle between the pair's steps; tuned on device.
         const val PAIR_STEP_MILLIS = 600L
+        const val WALLPAPER_REQUEST = 0x7a11
     }
 }

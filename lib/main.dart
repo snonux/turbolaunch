@@ -5,28 +5,31 @@ import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'services/app_source.dart';
 import 'services/launcher_controller.dart';
+import 'services/launcher_store.dart';
 import 'services/startup_timer.dart';
 import 'widgets/app_icon.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // The Linux desktop build is the dev loop: a fake app list instead of Android's.
   final AppSource source = Platform.isAndroid ? PlatformAppSource() : FakeAppSource.demo();
-  runApp(TurboLaunchApp(source: source));
+  final store = await LauncherStore.open();
+  runApp(TurboLaunchApp(source: source, store: store));
   StartupTimer.measureAfterFirstFrame(source);
 }
 
 class TurboLaunchApp extends StatefulWidget {
-  const TurboLaunchApp({super.key, required this.source});
+  const TurboLaunchApp({super.key, required this.source, required this.store});
 
   final AppSource source;
+  final LauncherStore store;
 
   @override
   State<TurboLaunchApp> createState() => _TurboLaunchAppState();
 }
 
 class _TurboLaunchAppState extends State<TurboLaunchApp> {
-  late final controller = LauncherController(widget.source);
+  late final controller = LauncherController(widget.source, widget.store);
   late final icons = IconCache(widget.source);
 
   @override

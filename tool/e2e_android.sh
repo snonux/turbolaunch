@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # End-to-end run of a TurboLaunch APK on a running emulator (adb connected):
-# installs it, makes it the home app, and checks through the UI that it lists
-# apps, that typing a search and Enter launches the top match, that Home
-# returns to it with the search cleared, that cold start is logged, and that
-# settings sees the accessibility service once it is turned on. Screenshots,
+# installs it, makes it the home app, and checks through the UI that the
+# search box lists the device's apps, that a fuzzy search and Enter launch the
+# top match, that Home returns with the search cleared and the launched app on
+# the home grid, that the long-press menu and quick hide work, that cold start
+# is logged, and that settings sees the accessibility service once it is on. Screenshots,
 # UI dumps and the log go to build/e2e-android/.
 #
 #   tool/e2e_android.sh build/app/outputs/flutter-apk/app-x86_64-release.apk
@@ -54,34 +55,68 @@ adb shell cmd package set-home-activity "$app/.MainActivity"
 adb shell input keyevent KEYCODE_HOME
 sleep 8
 
-# 1. TurboLaunch is the home screen and lists the device's apps.
+# 1. TurboLaunch is the home screen: clock line, search box, empty grid.
 dump; shot home
 expect_focus "home screen is TurboLaunch" "$app"
 expect_ui "search box shown" "Search apps"
-expect_ui "apps listed (Settings)" 'Settings'
-expect_ui "apps listed (Camera, Chrome or Clock)" 'Camera\|Chrome\|Clock'
+expect_ui "clock line shows the battery" '[0-9]%'
 if adb logcat -d | grep -q 'TurboLaunch cold start: [0-9]* ms'; then
   pass "cold start logged: $(adb logcat -d | grep -o 'TurboLaunch cold start: [0-9]* ms' | tail -1)"
 else
   fail "cold start logged"
 fi
 
-# 2. Typing a search and Enter launches the top match.
+# 2. Tapping the search box lists the device's apps.
 tap_on "Search apps" && sleep 2
-adb shell input text "sett"
+dump; shot all_apps
+expect_ui "apps listed (Camera, Chrome or Clock)" 'Camera\|Chrome\|Clock'
+
+# 3. A fuzzy search ("sttngs") and Enter launch the top match.
+adb shell input text "sttngs"
 sleep 2; dump; shot search
-expect_ui "search narrows the list" 'Settings'
+expect_ui "fuzzy search finds Settings" 'Settings'
 adb shell input keyevent KEYCODE_ENTER
 sleep 5; shot launched
 expect_focus "Enter launched Settings" "com.android.settings"
 
-# 3. Home comes back to TurboLaunch with the search cleared.
+# 4. Home comes back with the search cleared and Settings on the home grid.
 adb shell input keyevent KEYCODE_HOME
-sleep 4; dump; shot home_again
+sleep 4; dump; shot home_grid
 expect_focus "Home returns to TurboLaunch" "$app"
-if grep -q 'sett' "$out/ui.xml"; then fail "search cleared on Home"; else pass "search cleared on Home"; fi
+if grep -q 'sttngs' "$out/ui.xml"; then fail "search cleared on Home"; else pass "search cleared on Home"; fi
+expect_ui "Settings has a home cell" 'Settings'
 
-# 4. Settings sees the accessibility service once it is turned on.
+# 5. Tapping the cell launches it again.
+tap_on "Settings" && sleep 5
+expect_focus "grid cell launched Settings" "com.android.settings"
+adb shell input keyevent KEYCODE_HOME
+sleep 3
+
+# 6. Long-press menu: remove from home.
+dump
+xy=$(centre "Settings")
+if [ -n "$xy" ]; then
+  adb shell input swipe $xy $xy 900
+  sleep 2; dump; shot menu
+  expect_ui "long-press menu" 'Remove from home'
+  tap_on "Remove from home" && sleep 2
+  dump; shot removed
+  if grep -q 'Settings' "$out/ui.xml"; then fail "removed from home"; else pass "removed from home"; fi
+else
+  fail "find the Settings cell"
+fi
+
+# 7. Quick hide: long-press the clock line, then again to bring the grid back.
+dump
+xy=$(centre ":")
+if [ -n "$xy" ]; then
+  adb shell input swipe $xy $xy 900
+  sleep 2; shot quick_hidden
+  adb shell input swipe $xy $xy 900
+  sleep 2; pass "quick hide toggled"
+fi
+
+# 8. Settings sees the accessibility service once it is turned on.
 adb shell settings put secure enabled_accessibility_services "$app/$app.TurboLaunchAccessibilityService"
 adb shell settings put secure accessibility_enabled 1
 sleep 3
@@ -94,7 +129,7 @@ adb shell input keyevent KEYCODE_BACK
 sleep 2; dump
 expect_ui "Back returns to the list" 'Search apps'
 
-# 5. No crash anywhere.
+# 9. No crash anywhere.
 adb logcat -d >"$out/logcat.txt"
 if adb shell pidof "$app" >/dev/null; then pass "still running"; else fail "still running"; fi
 if grep -E "FATAL EXCEPTION|E/flutter|Unhandled Exception" "$out/logcat.txt"; then fail "no errors in the log"; else pass "no errors in the log"; fi

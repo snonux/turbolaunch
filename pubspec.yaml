@@ -13,6 +13,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  shared_preferences: ^2.3.2
   launcher_platform:
     path: packages/launcher_platform
 

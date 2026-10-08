@@ -38,9 +38,23 @@ rejects 25+).
 | --- | --- |
 | `lib/main.dart` | Picks the app source: Android, or a fake app list on Linux |
 | `lib/services/app_source.dart` | `AppEntry`, the `AppSource` interface, its Android and fake implementations |
-| `lib/services/launcher_controller.dart` | App list, search query, launching, Home presses |
-| `lib/screens/` | Home screen and settings |
+| `lib/services/launcher_controller.dart` | App list, search results, launch counts, the grid, settings, Home presses |
+| `lib/services/fuzzy.dart` | The fzf-style scorer (greedy, word starts and runs score higher) |
+| `lib/services/home_grid.dart` | Pure placement rules for the home grid and the automatic grid size |
+| `lib/services/launcher_store.dart` | Settings and state in SharedPreferences |
+| `lib/screens/` | Home screen (clock line, grid, results, search box) and settings |
 | `packages/launcher_platform/` | Kotlin plugin: LauncherApps, icons, launching, package and Home events, the accessibility service |
+
+### Home grid rules
+
+Cells are `(row, col)`. A placed app keeps its cell; only uninstalling it,
+hiding it, "Remove from home", or shrinking the grid below its cell frees
+the cell. Free cells go to the most-launched apps without one, bottom row
+first, left to right, ties by key so phones agree. "Remove from home" keeps
+the app off the grid until "Add to home". The automatic size is one column
+per 80 dp and one row per 96 dp (more with bigger labels); settings can
+override either. The grid ignores the size while the keyboard is open, so
+typing never cuts cells.
 
 Apps are identified everywhere by the key `package/activity#userSerial`.
 User serials survive reboots, user handles do not; later phases store launch
@@ -159,10 +173,10 @@ dart run flutter_launcher_icons
 
 From the plan, one PR per phase:
 
-1. **Skeleton** (this): project layout, plugin, HOME activity that lists and
+1. **Skeleton** (done): project layout, plugin, HOME activity that lists and
    launches apps, release workflow and signing, app-pair spike, cold start
    measured.
-2. **Daily driver**: fuzzy search, home grid filled by launch count (cells
+2. **Daily driver** (this): fuzzy search, home grid filled by launch count (cells
    never move once placed), hide, long-press menu, wallpapers, light and dark,
    font sizes, app shortcuts in search, quick hide.
 3. **Profiles and polish**: work profile and multi-user, icon cache, settings

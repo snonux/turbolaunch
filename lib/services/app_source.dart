@@ -27,6 +27,26 @@ class AppEntry {
   String toString() => 'AppEntry($label, $key)';
 }
 
+/// One long-press shortcut of an app, searchable like an app.
+class ShortcutEntry {
+  const ShortcutEntry({required this.packageName, required this.id, required this.userSerial, required this.label});
+
+  final String packageName;
+  final String id;
+  final int userSerial;
+  final String label;
+
+  /// Whether [app] is the app this shortcut belongs to.
+  bool belongsTo(AppEntry app) => app.packageName == packageName && app.key.endsWith('#$userSerial');
+
+  @override
+  bool operator ==(Object other) =>
+      other is ShortcutEntry && other.packageName == packageName && other.id == id && other.userSerial == userSerial;
+
+  @override
+  int get hashCode => Object.hash(packageName, id, userSerial);
+}
+
 /// What [AppSource.events] reports.
 enum AppSourceEvent {
   /// Apps were installed, removed or updated: list them again.
@@ -51,6 +71,15 @@ abstract class AppSource {
   Future<void> openAccessibilitySettings();
   Future<void> openHomeSettings();
   Future<PairOutcome> launchPair(AppEntry first, AppEntry second);
+
+  /// Battery level in percent, or -1 where unknown.
+  Future<int> battery();
+  Future<bool> uninstall(AppEntry app);
+  Future<List<ShortcutEntry>> shortcuts();
+  Future<bool> startShortcut(ShortcutEntry shortcut);
+
+  /// True when set, false on failure, null when the user cancelled.
+  Future<bool?> pickWallpaper(WallpaperTarget target);
 }
 
 class PlatformAppSource implements AppSource {
@@ -96,39 +125,71 @@ class PlatformAppSource implements AppSource {
 
   @override
   Future<PairOutcome> launchPair(AppEntry first, AppEntry second) => _platform.launchPair(first.key, second.key);
+
+  @override
+  Future<int> battery() => _platform.battery();
+
+  @override
+  Future<bool> uninstall(AppEntry app) => _platform.uninstall(app.key);
+
+  @override
+  Future<List<ShortcutEntry>> shortcuts() async => [
+    for (final s in await _platform.shortcuts())
+      ShortcutEntry(packageName: s.packageName, id: s.id, userSerial: s.userSerial, label: s.label),
+  ];
+
+  @override
+  Future<bool> startShortcut(ShortcutEntry s) => _platform.startShortcut(
+    PlatformShortcut(packageName: s.packageName, id: s.id, userSerial: s.userSerial, label: s.label),
+  );
+
+  @override
+  Future<bool?> pickWallpaper(WallpaperTarget target) => _platform.pickWallpaper(target);
 }
 
 /// An in-memory device: a fixed app list, and a record of what was launched.
 class FakeAppSource implements AppSource {
-  FakeAppSource(List<AppEntry> apps) : _apps = List.of(apps);
+  FakeAppSource(List<AppEntry> apps, {List<ShortcutEntry> shortcuts = const []})
+    : _apps = List.of(apps),
+      _shortcuts = List.of(shortcuts);
 
   /// A plausible set of free apps, for the Linux desktop build.
-  factory FakeAppSource.demo() => FakeAppSource([
-    for (final (pkg, label) in const [
-      ('org.mozilla.fennec_fdroid', 'Fennec'),
-      ('app.organicmaps', 'Organic Maps'),
-      ('org.fossify.gallery', 'Gallery'),
-      ('org.fossify.calendar', 'Calendar'),
-      ('org.fossify.clock', 'Clock'),
-      ('org.fossify.contacts', 'Contacts'),
-      ('org.fossify.messages', 'Messages'),
-      ('org.fossify.phone', 'Phone'),
-      ('org.fossify.notes', 'Notes'),
-      ('com.github.libretube', 'LibreTube'),
-      ('de.danoeh.antennapod', 'AntennaPod'),
-      ('org.buetow.quicklog', 'Quicklog'),
-      ('app.grapheneos.camera', 'Camera'),
-      ('com.android.settings', 'Settings'),
-      ('net.osmand.plus', 'OsmAnd~'),
-      ('org.thoughtcrime.securesms', 'Molly'),
-      ('com.termux', 'Termux'),
-      ('ch.protonmail.android', 'Proton Mail'),
-    ])
-      AppEntry(key: '$pkg/$pkg.MainActivity#0', label: label),
-  ]);
+  factory FakeAppSource.demo() => FakeAppSource(
+    [
+      for (final (pkg, label) in const [
+        ('org.mozilla.fennec_fdroid', 'Fennec'),
+        ('app.organicmaps', 'Organic Maps'),
+        ('org.fossify.gallery', 'Gallery'),
+        ('org.fossify.calendar', 'Calendar'),
+        ('org.fossify.clock', 'Clock'),
+        ('org.fossify.contacts', 'Contacts'),
+        ('org.fossify.messages', 'Messages'),
+        ('org.fossify.phone', 'Phone'),
+        ('org.fossify.notes', 'Notes'),
+        ('com.github.libretube', 'LibreTube'),
+        ('de.danoeh.antennapod', 'AntennaPod'),
+        ('org.buetow.quicklog', 'Quicklog'),
+        ('app.grapheneos.camera', 'Camera'),
+        ('com.android.settings', 'Settings'),
+        ('net.osmand.plus', 'OsmAnd~'),
+        ('org.thoughtcrime.securesms', 'Molly'),
+        ('com.termux', 'Termux'),
+        ('ch.protonmail.android', 'Proton Mail'),
+      ])
+        AppEntry(key: '$pkg/$pkg.MainActivity#0', label: label),
+    ],
+    shortcuts: const [
+      ShortcutEntry(packageName: 'org.fossify.notes', id: 'new', userSerial: 0, label: 'New note'),
+      ShortcutEntry(packageName: 'app.organicmaps', id: 'home', userSerial: 0, label: 'Navigate home'),
+    ],
+  );
 
   List<AppEntry> _apps;
+  final List<ShortcutEntry> _shortcuts;
   final launched = <AppEntry>[];
+  final shortcutsStarted = <ShortcutEntry>[];
+  final uninstalled = <AppEntry>[];
+  final wallpapers = <WallpaperTarget>[];
   final pairs = <(AppEntry, AppEntry)>[];
   final _events = StreamController<AppSourceEvent>.broadcast();
   bool serviceEnabled = false;
@@ -174,5 +235,29 @@ class FakeAppSource implements AppSource {
   Future<PairOutcome> launchPair(AppEntry first, AppEntry second) async {
     pairs.add((first, second));
     return serviceEnabled ? PairOutcome.split : PairOutcome.noService;
+  }
+
+  @override
+  Future<int> battery() async => 87;
+
+  @override
+  Future<bool> uninstall(AppEntry app) async {
+    uninstalled.add(app);
+    return true;
+  }
+
+  @override
+  Future<List<ShortcutEntry>> shortcuts() async => List.of(_shortcuts);
+
+  @override
+  Future<bool> startShortcut(ShortcutEntry shortcut) async {
+    shortcutsStarted.add(shortcut);
+    return true;
+  }
+
+  @override
+  Future<bool?> pickWallpaper(WallpaperTarget target) async {
+    wallpapers.add(target);
+    return true;
   }
 }

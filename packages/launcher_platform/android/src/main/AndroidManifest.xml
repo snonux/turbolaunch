@@ -1,8 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Swipe down on the home screen pulls the notification shade. A normal
+         permission, granted at install. -->
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
     <application>
         <!-- Opt-in: does nothing until the user enables it under Settings,
-             Accessibility. Used only to put the screen into split screen for
-             app pairs (and later to lock the screen on double-tap). It reads
+             Accessibility. Used only for three global actions: split screen for
+             app pairs, locking the screen on a double-tap, and pulling down
+             the notification shade. It reads
              no window content and receives no events. -->
         <service
             android:name="org.buetow.turbolaunch.TurboLaunchAccessibilityService"

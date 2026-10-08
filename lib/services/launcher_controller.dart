@@ -2,10 +2,14 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:launcher_platform/launcher_platform.dart';
+
+import 'app_pairs.dart';
 import 'app_source.dart';
 import 'fuzzy.dart';
 import 'home_grid.dart';
 import 'launcher_store.dart';
+import 'settings_backup.dart';
 
 /// One line in the search results: an app, or one of an app's shortcuts.
 class SearchResult {
@@ -25,24 +29,37 @@ class SearchResult {
   String get title => app?.label ?? shortcut!.label;
 }
 
-/// The launcher's state: apps, shortcuts, launch counts, the home grid, the
-/// search query and settings. Persists through [LauncherStore].
+/// One line of the stats screen.
+typedef AppStat = ({AppEntry app, int launches, Cell? cell});
+
+/// The launcher's state: apps, app pairs, shortcuts, launch counts, the home
+/// grid, the search query and settings. Persists through [LauncherStore].
 class LauncherController extends ChangeNotifier {
   LauncherController(this.source, this.store) {
+    _load();
+    _subscription = source.events.listen(_onEvent);
+  }
+
+  void _load() {
     _counts = store.counts;
     _slots = store.slots;
     _excluded = store.excluded;
     _hidden = store.hidden;
     _settings = store.settings;
     _quickHide = store.quickHide;
-    _subscription = source.events.listen(_onEvent);
+    _pairs = store.pairs;
   }
 
   final AppSource source;
   final LauncherStore store;
   late final StreamSubscription<AppSourceEvent> _subscription;
 
+  /// Installed apps, as the device lists them.
+  List<AppEntry> _installed = const [];
+
+  /// [_installed] plus the app pairs whose two apps are both installed.
   List<AppEntry> _apps = const [];
+  late List<AppPair> _pairs;
   List<ShortcutEntry> _shortcuts = const [];
   late Map<String, int> _counts;
   late Map<Cell, String> _slots;
@@ -57,7 +74,12 @@ class LauncherController extends ChangeNotifier {
   /// Bumped on every Home press, so the UI can drop focus and the keyboard.
   int homePresses = 0;
 
+  /// Apps and app pairs, alphabetical.
   List<AppEntry> get apps => _apps;
+
+  /// Installed apps without the pairs, for picking a pair's apps.
+  List<AppEntry> get installedApps => _installed;
+  List<AppPair> get pairs => List.unmodifiable(_pairs);
   String get query => _query;
   bool get loaded => _loaded;
   Map<String, int> get counts => Map.unmodifiable(_counts);
@@ -116,11 +138,8 @@ class LauncherController extends ChangeNotifier {
 
   Future<void> refresh() async {
     final apps = await source.listApps();
-    apps.sort((a, b) {
-      final byLabel = a.label.toLowerCase().compareTo(b.label.toLowerCase());
-      return byLabel != 0 ? byLabel : a.key.compareTo(b.key);
-    });
-    _apps = List.unmodifiable(apps);
+    _installed = List.unmodifiable(apps..sort(_byLabel));
+    _mergePairs();
     try {
       _shortcuts = List.unmodifiable(await source.shortcuts());
     } catch (_) {
@@ -129,6 +148,34 @@ class LauncherController extends ChangeNotifier {
     _loaded = true;
     _place();
     notifyListeners();
+  }
+
+  static int _byLabel(AppEntry a, AppEntry b) {
+    final byLabel = a.label.toLowerCase().compareTo(b.label.toLowerCase());
+    return byLabel != 0 ? byLabel : a.key.compareTo(b.key);
+  }
+
+  void _mergePairs() {
+    final keys = {for (final a in _installed) a.key};
+    _apps = List.unmodifiable(
+      <AppEntry>[
+        ..._installed,
+        for (final p in _pairs)
+          if (keys.contains(p.first) && keys.contains(p.second)) AppEntry.pair(p),
+      ]..sort(_byLabel),
+    );
+  }
+
+  /// The installed app with [key], if any.
+  AppEntry? appByKey(String key) => _installed.where((a) => a.key == key).firstOrNull;
+
+  /// Launch counts with each app's cell, most-launched first; for the stats screen.
+  List<AppStat> get stats {
+    final cells = {for (final e in _slots.entries) e.value: e.key};
+    return [
+      for (final a in _apps)
+        if ((_counts[a.key] ?? 0) > 0) (app: a, launches: _counts[a.key]!, cell: cells[a.key]),
+    ]..sort((a, b) => a.launches != b.launches ? b.launches.compareTo(a.launches) : _byLabel(a.app, b.app));
   }
 
   set query(String value) {
@@ -165,9 +212,16 @@ class LauncherController extends ChangeNotifier {
     }
   }
 
-  /// Launches [app], counts the launch, and clears the search.
+  /// Launches [app] (both apps of a pair), counts the launch, and clears the search.
   Future<bool> launch(AppEntry app) async {
-    final ok = await source.launch(app);
+    final pair = app.pair;
+    final bool ok;
+    if (pair != null) {
+      final first = appByKey(pair.first), second = appByKey(pair.second);
+      ok = first != null && second != null && await source.launchPair(first, second) != PairOutcome.failed;
+    } else {
+      ok = await source.launch(app);
+    }
     if (!ok) return false;
     _counts[app.key] = (_counts[app.key] ?? 0) + 1;
     store.setCounts(_counts);
@@ -225,6 +279,57 @@ class LauncherController extends ChangeNotifier {
     }
     _place();
     notifyListeners();
+  }
+
+  /// Saves a pair of [first] on top and [second] below; replaces a pair of the same two apps.
+  AppPair addPair(AppEntry first, AppEntry second, {String? name}) {
+    final pair = AppPair(
+      name: (name ?? '').trim().isEmpty ? '${first.label} + ${second.label}' : name!.trim(),
+      first: first.key,
+      second: second.key,
+    );
+    _pairs = [..._pairs.where((p) => p.key != pair.key), pair];
+    store.setPairs(_pairs);
+    _mergePairs();
+    _place();
+    notifyListeners();
+    return pair;
+  }
+
+  void removePair(AppPair pair) {
+    _pairs = [..._pairs.where((p) => p.key != pair.key)];
+    store.setPairs(_pairs);
+    _mergePairs();
+    _place();
+    notifyListeners();
+  }
+
+  /// Re-reads everything from the store, after a settings import.
+  void reload() {
+    _load();
+    _mergePairs();
+    _rows = 0;
+    _cols = 0;
+    notifyListeners();
+  }
+
+  /// Saves the export file where the user picks. The file's name, or null when cancelled.
+  Future<String?> exportSettings({DateTime? now}) {
+    final at = now ?? DateTime.now();
+    return source.saveTextFile(
+      suggestedSettingsFileName(at),
+      encodeSettingsBackup(LauncherBackup.fromStore(store), exportedAt: at),
+    );
+  }
+
+  /// Imports a file the user picks; false when cancelled. Throws
+  /// [SettingsImportException] for a bad file, before anything is changed.
+  Future<bool> importSettings() async {
+    final text = await source.openTextFile();
+    if (text == null) return false;
+    await decodeSettingsBackup(text).applyTo(store);
+    reload();
+    return true;
   }
 
   void toggleQuickHide() {

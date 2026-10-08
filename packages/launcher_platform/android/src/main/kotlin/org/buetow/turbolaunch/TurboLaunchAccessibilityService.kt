@@ -5,8 +5,9 @@ import android.view.accessibility.AccessibilityEvent
 import java.lang.ref.WeakReference
 
 /**
- * Opt-in service that only performs global actions (split screen now, lock
- * screen in a later phase). It ignores every accessibility event.
+ * Opt-in service that only performs global actions: split screen for app
+ * pairs, lock screen, and the notification shade. It ignores every
+ * accessibility event.
  */
 class TurboLaunchAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {

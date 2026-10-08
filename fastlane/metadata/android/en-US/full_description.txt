@@ -7,12 +7,17 @@ Press Home, type two or three letters, hit Enter, and the app opens.
 * The search box always at the bottom, within thumb reach
 * Long-press an app to remove it from home, hide it, see its app info or uninstall it
 * Clock, date and battery; long-press to hide the grid while sharing your screen
+* Double-tap empty space to lock, swipe down for notifications
+* App pairs: two apps side by side in split screen, one tap away
+* A stats screen showing launch counts and where each app sits
 * Home and lock screen wallpapers, grid size and font sizes
 * Work profile apps included
+* Export and import of settings, pairs and the home grid as one file
 * No tracking, no ads, no Google Play Services
 
 Permissions and features you should know about:
 
-* Accessibility service (optional, off by default): TurboLaunch actions only switches the screen into split screen to open an app pair. It reads no screen content and sees nothing you type.
+* Accessibility service (optional, off by default): TurboLaunch actions only locks the screen on a double-tap, pulls down notifications and switches into split screen for an app pair. It reads no screen content and sees nothing you type.
+* Expand status bar: a swipe down on the home screen opens the notification shade. Without the accessibility service this uses a hidden Android call that home apps have long relied on; if a future Android removes it, the swipe simply does nothing.
 
-TurboLaunch is in early development. Coming next: a stats screen, double-tap to lock, swipe down for notifications, app pairs, and optional sync of launch counts and home cells to your own S3 bucket.
+TurboLaunch is in early development. Coming next: optional sync of launch counts and home cells to your own S3 bucket.

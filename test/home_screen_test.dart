@@ -27,7 +27,21 @@ void main() {
     addTearDown(tester.view.reset);
     SharedPreferences.setMockInitialValues(prefs);
     final store = await LauncherStore.open();
+    // A fresh app each time, even when a test starts twice.
+    await tester.pumpWidget(const SizedBox());
     await tester.pumpWidget(TurboLaunchApp(source: source, store: store));
+    await tester.pumpAndSettle();
+  }
+
+  /// Scrolls the settings page (not a text field inside it) until [f] shows.
+  Future<void> scrollTo(WidgetTester tester, Finder f) async {
+    await tester.scrollUntilVisible(f, 100, scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(f);
+    await tester.pumpAndSettle();
+  }
+
+  Future<void> openSettings(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('open-settings')));
     await tester.pumpAndSettle();
   }
 
@@ -155,7 +169,7 @@ void main() {
     expect(source.wallpapers, [WallpaperTarget.lock]);
     expect(find.text('Wallpaper set.'), findsOneWidget);
 
-    await tester.scrollUntilVisible(find.byKey(const Key('grid-cols')), 100);
+    await scrollTo(tester, find.byKey(const Key('grid-cols')));
     await tester.tap(
       find.descendant(of: find.byKey(const Key('grid-cols')), matching: find.byType(DropdownButton<int>)),
     );
@@ -164,13 +178,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.descendant(of: find.byKey(const Key('grid-cols')), matching: find.text('3')), findsOneWidget);
 
-    await tester.scrollUntilVisible(find.byKey(const Key('scale-labels')), 100);
+    await scrollTo(tester, find.byKey(const Key('scale-labels')));
     final slider = find.descendant(of: find.byKey(const Key('scale-labels')), matching: find.byType(Slider));
     await tester.drag(slider, const Offset(400, 0));
     await tester.pumpAndSettle();
     expect(find.text('Grid labels: 160%'), findsOneWidget);
 
-    await tester.scrollUntilVisible(find.text('Unhide'), 100);
+    await scrollTo(tester, find.text('Unhide'));
     await tester.tap(find.text('Unhide'));
     await tester.pumpAndSettle();
     expect(find.text('Hidden apps'), findsNothing);
@@ -187,21 +201,201 @@ void main() {
     await tester.pumpAndSettle();
 
     Future<void> pick(String picker, String label) async {
-      await tester.scrollUntilVisible(find.byKey(Key(picker)), 100);
+      await scrollTo(tester, find.byKey(Key(picker)));
       await tester.tap(find.byKey(Key(picker)));
       await tester.pumpAndSettle();
       await tester.tap(find.text(label).last);
       await tester.pumpAndSettle();
     }
 
-    await tester.scrollUntilVisible(find.text('Off: tap to open Accessibility settings'), 100);
+    await scrollTo(tester, find.text('Off: tap to open Accessibility settings'));
     await pick('pair-first', 'Maps');
     await pick('pair-second', 'Music');
-    await tester.scrollUntilVisible(find.byKey(const Key('open-pair')), 100);
+    await scrollTo(tester, find.byKey(const Key('open-pair')));
     await tester.tap(find.byKey(const Key('open-pair')));
     await tester.pumpAndSettle();
     expect(source.pairs.single.$1.label, 'Maps');
     expect(source.pairs.single.$2.label, 'Music');
     expect(find.textContaining('Opened Maps only'), findsOneWidget);
+  });
+
+  testWidgets('a saved app pair is searchable, opens both apps, earns a cell and can be deleted', (tester) async {
+    source.serviceEnabled = true;
+    await start(tester);
+    await openSettings(tester);
+    Future<void> pick(String picker, String label) async {
+      await scrollTo(tester, find.byKey(Key(picker)));
+      await tester.tap(find.byKey(Key(picker)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(label).last);
+      await tester.pumpAndSettle();
+    }
+
+    await pick('pair-first', 'Maps');
+    await pick('pair-second', 'Music');
+    await scrollTo(tester, find.byKey(const Key('save-pair')));
+    await tester.tap(find.byKey(const Key('save-pair')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Saved "Maps + Music"'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byKey(const Key('search')), 'mapsmus');
+    await tester.pumpAndSettle();
+    await tester.testTextInput.receiveAction(TextInputAction.go);
+    await tester.pumpAndSettle();
+    expect(source.pairs.single.$1.label, 'Maps');
+    expect(source.pairs.single.$2.label, 'Music');
+    expect(source.launched, isEmpty, reason: 'the pair opens through launchPair');
+    expect(find.text('Maps + Music'), findsOneWidget, reason: 'the pair took a home cell');
+
+    await tester.longPress(find.text('Maps + Music'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('menu-uninstall')), findsNothing);
+    await tester.tap(find.byKey(const Key('menu-delete-pair')));
+    await tester.pumpAndSettle();
+    expect(find.text('Maps + Music'), findsNothing);
+  });
+
+  testWidgets('double-tap on empty home space locks, or explains the accessibility service', (tester) async {
+    await start(tester);
+    await tester.tap(find.byKey(const Key('empty-0-0')));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byKey(const Key('empty-0-0')));
+    await tester.pumpAndSettle();
+    expect(source.locks, 0);
+    expect(find.textContaining('needs TurboLaunch actions'), findsOneWidget);
+
+    source.serviceEnabled = true;
+    await tester.tap(find.byKey(const Key('empty-0-0')));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byKey(const Key('empty-0-0')));
+    await tester.pumpAndSettle();
+    expect(source.locks, 1);
+  });
+
+  testWidgets('swipe down on home opens the notification shade, unless turned off', (tester) async {
+    await start(tester);
+    await tester.fling(find.byKey(const Key('home-grid')), const Offset(0, 300), 1000);
+    await tester.pumpAndSettle();
+    expect(source.shades, 1);
+
+    await openSettings(tester);
+    await scrollTo(tester, find.byKey(const Key('swipe-notifications')));
+    await tester.tap(find.byKey(const Key('swipe-notifications')));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await tester.fling(find.byKey(const Key('home-grid')), const Offset(0, 300), 1000);
+    await tester.pumpAndSettle();
+    expect(source.shades, 1);
+  });
+
+  testWidgets('a slow pull down far enough opens the shade too; short or upward drags do not', (tester) async {
+    await start(tester);
+    final grid = find.byKey(const Key('home-grid'));
+    await tester.timedDrag(grid, const Offset(0, 20), const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    await tester.timedDrag(grid, const Offset(0, -200), const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(source.shades, 0);
+    await tester.timedDrag(grid, const Offset(0, 200), const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(source.shades, 1);
+  });
+
+  testWidgets('the stats screen lists launch counts and home cells', (tester) async {
+    await start(tester, {
+      'launchCounts':
+          '{"org.example.maps/org.example.maps.Main#0": 5, "org.example.music/org.example.music.Main#0": 2}',
+    });
+    await openSettings(tester);
+    await tester.tap(find.byKey(const Key('open-stats')));
+    await tester.pumpAndSettle();
+    expect(find.text('7 launches on this phone'), findsOneWidget);
+    final maps = tester.getTopLeft(find.byKey(const ValueKey('stat-org.example.maps/org.example.maps.Main#0')));
+    final music = tester.getTopLeft(find.byKey(const ValueKey('stat-org.example.music/org.example.music.Main#0')));
+    expect(maps.dy, lessThan(music.dy), reason: 'most-launched first');
+    expect(find.textContaining('Home row 1, column 1'), findsOneWidget);
+  });
+
+  testWidgets('settings export and import round-trip, a bad file changes nothing', (tester) async {
+    await start(tester);
+    await openSearch(tester);
+    await tester.tap(find.text('Maps'));
+    await tester.pumpAndSettle();
+    await openSettings(tester);
+    await scrollTo(tester, find.byKey(const Key('export-settings')));
+    await tester.tap(find.byKey(const Key('export-settings')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Saved to turbolaunch-settings-'), findsOneWidget);
+    final exported = source.fileToOpen!;
+
+    // Start over on a "new phone" and import the file.
+    await start(tester);
+    source.fileToOpen = '{"app": "org.buetow.quicklog"}';
+    await openSettings(tester);
+    Future<void> import() async {
+      await scrollTo(tester, find.byKey(const Key('import-settings')));
+      await tester.tap(find.byKey(const Key('import-settings')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('confirm-import')));
+      await tester.pumpAndSettle();
+    }
+
+    await import();
+    expect(find.textContaining('belongs to "org.buetow.quicklog"'), findsOneWidget);
+    source.fileToOpen = exported;
+    await import();
+    expect(find.text('Settings imported.'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Maps'), findsOneWidget, reason: 'the imported grid has Maps');
+  });
+
+  testWidgets('apps of a paused work profile still show, with the work badge', (tester) async {
+    source.apps = [
+      app('Calendar'),
+      const AppEntry(key: 'org.example.mail/org.example.mail.Main#10', label: 'Mail', otherProfile: true, paused: true),
+    ];
+    await start(tester);
+    await openSearch(tester);
+    expect(find.text('Mail'), findsOneWidget);
+    expect(find.byIcon(Icons.work_outline), findsOneWidget);
+    expect(find.byType(ColorFiltered), findsOneWidget, reason: 'paused apps are drawn in grey');
+  });
+
+  testWidgets('an app launched with the keyboard open gets a bottom-row cell', (tester) async {
+    await start(tester);
+    final full = tester.getSize(find.byKey(const Key('home-grid')));
+    await openSearch(tester);
+    // The keyboard takes most of the screen while typing.
+    tester.view.viewInsets = const FakeViewPadding(bottom: 1400);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.enterText(find.byKey(const Key('search')), 'maps');
+    await tester.pumpAndSettle();
+    await tester.testTextInput.receiveAction(TextInputAction.go);
+    await tester.pumpAndSettle();
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byKey(const Key('home-grid'))), full);
+    final cell = tester.getRect(find.byKey(const ValueKey('cell-org.example.maps/org.example.maps.Main#0')));
+    final grid = tester.getRect(find.byKey(const Key('home-grid')));
+    expect(
+      cell.center.dy,
+      greaterThan(grid.bottom - grid.height * 0.15),
+      reason: 'bottom row, not a row of the squeezed grid',
+    );
+  });
+
+  testWidgets('each grid cell is its own accessibility node', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await start(tester, {'launchCounts': '{"org.example.maps/org.example.maps.Main#0": 1}'});
+    final node = tester.getSemantics(find.byKey(const ValueKey('cell-org.example.maps/org.example.maps.Main#0')));
+    expect(node.label, contains('Maps'));
+    final grid = tester.getSize(find.byKey(const Key('home-grid')));
+    expect(node.rect.width, lessThan(grid.width / 2), reason: 'not merged into the whole grid');
+    expect(node.rect.height, lessThan(grid.height / 2));
+    semantics.dispose();
   });
 }

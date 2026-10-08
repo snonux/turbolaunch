@@ -7,9 +7,14 @@ Home, type two or three letters, hit Enter, and the app opens. No tracking,
 no Google Play Services; the only network use will be optional sync to your
 own S3 bucket.
 
-**Status: phase 2 of 5 (daily driver).** S3 sync, the stats screen,
-gestures and the F-Droid release follow; see the roadmap in
-[AGENTS.md](AGENTS.md#roadmap).
+<p align="center">
+  <img src="docs/screenshots/home.png" width="270" alt="Home screen: clock and battery on top, a grid of the most-launched apps near the bottom, the search box below">
+  &nbsp;
+  <img src="docs/screenshots/search.png" width="270" alt="Typing &quot;te&quot; lists Termux, Notes, AntennaPod, LibreTube and app shortcuts, matched letters highlighted">
+</p>
+
+**Status: phase 3 of 5 (profiles and polish).** The F-Droid release and S3
+sync follow; see the roadmap in [AGENTS.md](AGENTS.md#roadmap).
 
 ## Highlights
 
@@ -21,8 +26,13 @@ gestures and the F-Droid release follow; see the roadmap in
 * Search box always on screen at the bottom; Home clears it
 * Long-press an app: remove from or add to home, hide, app info, uninstall
 * Clock, date and battery on top; long-press it to hide the grid (quick hide)
+* Double-tap empty home space to lock, swipe down for notifications
+* App pairs: two apps side by side in split screen, searchable and on the
+  grid like any app
+* A stats screen with launch counts and where each app sits
 * Home and lock screen wallpapers, grid size and three font sizes in settings
-* Work profile apps included, with a badge
+* Work profile apps included, with a badge (greyed while work apps are paused)
+* Export and import of everything as one JSON file, for a new phone
 
 ## Try it
 

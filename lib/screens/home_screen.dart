@@ -92,8 +92,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 item('unhide', Icons.visibility_outlined, 'Unhide')
               else
                 item('hide', Icons.visibility_off_outlined, 'Hide'),
-              item('info', Icons.info_outline, 'App info'),
-              item('uninstall', Icons.delete_outline, 'Uninstall'),
+              if (app.isPair)
+                item('delete-pair', Icons.delete_outline, 'Delete pair')
+              else ...[
+                item('info', Icons.info_outline, 'App info'),
+                item('uninstall', Icons.delete_outline, 'Uninstall'),
+              ],
             ],
           ),
         );
@@ -112,7 +116,42 @@ class _HomeScreenState extends State<HomeScreen> {
         await _c.source.appInfo(app);
       case 'uninstall':
         await _c.source.uninstall(app);
+      case 'delete-pair':
+        _c.removePair(app.pair!);
     }
+  }
+
+  /// Double-tap on empty home space: lock the phone.
+  Future<void> _lock() async {
+    if (await _c.source.lockScreen() || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Double-tap to lock needs TurboLaunch actions turned on under Accessibility.'),
+        action: SnackBarAction(label: 'Open', onPressed: _c.source.openAccessibilitySettings),
+      ),
+    );
+  }
+
+  /// How far the current vertical drag has gone down, in logical pixels.
+  double _pull = 0;
+  static const _pullToOpen = 80.0;
+
+  /// Swipe down on the home screen: the notification shade. Fails silently.
+  Widget _gestures(Widget child) {
+    if (!_c.settings.swipeNotifications) return child;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      // Its scroll actions would merge every cell into one semantics node,
+      // so TalkBack (and uiautomator) could no longer tell the apps apart.
+      excludeFromSemantics: true,
+      // A fling down, or a slower pull that goes far enough.
+      onVerticalDragStart: (_) => _pull = 0,
+      onVerticalDragUpdate: (d) => _pull += d.delta.dy,
+      onVerticalDragEnd: (d) {
+        if ((d.primaryVelocity ?? 0) > 300 || _pull > _pullToOpen) _c.source.expandNotifications();
+      },
+      child: child,
+    );
   }
 
   void _openSettings() {
@@ -127,6 +166,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // Only empty space listens for double-taps, so taps on apps are never delayed.
+    final lockOnDoubleTap = _c.settings.doubleTapLock ? _lock : null;
+    // Read here, above the Scaffold: the Scaffold takes the keyboard's inset
+    // out of the MediaQuery its body sees.
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return PopScope(
       // Back on the home screen clears the search instead of leaving.
       canPop: false,
@@ -145,13 +189,22 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? const SizedBox.shrink()
                     : _searching
                     ? _results(scheme)
-                    : _c.quickHide
-                    ? GestureDetector(
-                        key: const Key('quick-hidden'),
-                        behavior: HitTestBehavior.opaque,
-                        onLongPress: _c.toggleQuickHide,
-                      )
-                    : _HomeGrid(controller: _c, icons: widget.icons, onLongPress: _showMenu),
+                    : _gestures(
+                        _c.quickHide
+                            ? GestureDetector(
+                                key: const Key('quick-hidden'),
+                                behavior: HitTestBehavior.opaque,
+                                onLongPress: _c.toggleQuickHide,
+                                onDoubleTap: lockOnDoubleTap,
+                              )
+                            : _HomeGrid(
+                                keyboardOpen: keyboardOpen,
+                                controller: _c,
+                                icons: widget.icons,
+                                onLongPress: _showMenu,
+                                onDoubleTap: lockOnDoubleTap,
+                              ),
+                      ),
               ),
               _searchRow(scheme),
             ],
@@ -324,17 +377,27 @@ class _ClockLineState extends State<_ClockLine> {
 /// The home grid. Measures its own area and reports the automatic size to
 /// the controller, which places apps; cells never move once placed.
 class _HomeGrid extends StatelessWidget {
-  const _HomeGrid({required this.controller, required this.icons, required this.onLongPress});
+  const _HomeGrid({
+    required this.keyboardOpen,
+    required this.controller,
+    required this.icons,
+    required this.onLongPress,
+    this.onDoubleTap,
+  });
+
+  final bool keyboardOpen;
 
   final LauncherController controller;
   final IconCache icons;
   final void Function(AppEntry) onLongPress;
 
+  /// For empty cells only.
+  final VoidCallback? onDoubleTap;
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
-        final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
         final auto = autoGridSize(box.maxWidth, box.maxHeight, labelScale: controller.settings.labelScale);
         // The keyboard shrinks the area for a moment; that must not cut cells.
         if (!keyboardOpen) {
@@ -353,7 +416,13 @@ class _HomeGrid extends StatelessWidget {
                     for (var c = 0; c < cols; c++)
                       Expanded(
                         child: grid[Cell(r, c)] == null
-                            ? const SizedBox.expand()
+                            ? GestureDetector(
+                                key: ValueKey('empty-$r-$c'),
+                                behavior: HitTestBehavior.opaque,
+                                excludeFromSemantics: true,
+                                onDoubleTap: onDoubleTap,
+                                child: const SizedBox.expand(),
+                              )
                             : _GridCell(
                                 app: grid[Cell(r, c)]!,
                                 icons: icons,
@@ -389,38 +458,51 @@ class _GridCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      key: ValueKey('cell-${app.key}'),
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      onLongPress: onLongPress,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              AppIcon(app: app, cache: icons, size: 48),
-              if (app.otherProfile)
-                const Positioned(right: -4, bottom: -4, child: Icon(Icons.work, size: 16, color: Colors.white)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Text(
-              app.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12 * labelScale,
-                color: Colors.white,
-                shadows: const [Shadow(blurRadius: 4, color: Colors.black87)],
+    // Each cell is its own accessibility node, whatever wraps the grid.
+    return Semantics(
+      container: true,
+      child: InkWell(
+        key: ValueKey('cell-${app.key}'),
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        onLongPress: onLongPress,
+        // Scales down rather than overflowing while the keyboard squeezes the grid.
+        child: LayoutBuilder(
+          builder: (context, box) => FittedBox(
+            fit: BoxFit.scaleDown,
+            child: SizedBox(
+              width: box.maxWidth,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      AppIcon(app: app, cache: icons, size: 48),
+                      if (app.otherProfile)
+                        const Positioned(right: -4, bottom: -4, child: Icon(Icons.work, size: 16, color: Colors.white)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Text(
+                      app.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12 * labelScale,
+                        color: Colors.white,
+                        shadows: const [Shadow(blurRadius: 4, color: Colors.black87)],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -465,7 +547,11 @@ class _ResultTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: result.shortcut != null ? Text(owner.label) : null,
-      trailing: owner.otherProfile ? const Icon(Icons.work_outline, size: 18) : null,
+      trailing: owner.isPair
+          ? const Icon(Icons.vertical_split_outlined, size: 18)
+          : owner.otherProfile
+          ? const Icon(Icons.work_outline, size: 18)
+          : null,
       onTap: onTap,
       onLongPress: onLongPress,
     );

@@ -3,9 +3,11 @@ package org.buetow.turbolaunch
 import android.accessibilityservice.AccessibilityService
 import android.app.Activity
 import android.app.WallpaperManager
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.LauncherActivityInfo
 import android.content.pm.LauncherApps
 import android.graphics.Bitmap
@@ -21,8 +23,11 @@ import android.os.Process
 import android.os.SystemClock
 import android.os.UserHandle
 import android.os.UserManager
+import android.provider.DocumentsContract
 import android.provider.MediaStore
+import android.provider.OpenableColumns
 import android.provider.Settings
+import android.util.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -31,6 +36,8 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.PluginRegistry
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.IOException
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -57,9 +64,21 @@ class LauncherPlatformPlugin :
     private val main = Handler(Looper.getMainLooper())
     private val worker: ExecutorService = Executors.newFixedThreadPool(2)
 
+    private lateinit var iconCache: IconDiskCache
+
     // The wallpaper pick in flight: which screens to set, and who to answer.
     private var wallpaperFlags = 0
     private var wallpaperResult: MethodChannel.Result? = null
+
+    // The settings file dialog in flight, and the text to write for an export.
+    private var fileResult: MethodChannel.Result? = null
+    private var fileContent: String? = null
+
+    // A work profile paused, resumed, added or removed changes the app list.
+    private val profileReceiver =
+        object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) = emit("packages")
+        }
 
     private val packageCallback =
         object : LauncherApps.Callback() {
@@ -83,6 +102,7 @@ class LauncherPlatformPlugin :
         context = binding.applicationContext
         launcherApps = context.getSystemService(LauncherApps::class.java)
         userManager = context.getSystemService(UserManager::class.java)
+        iconCache = IconDiskCache(File(context.cacheDir, "icons"))
         channel = MethodChannel(binding.binaryMessenger, "launcher_platform").also { it.setMethodCallHandler(this) }
         eventChannel = EventChannel(binding.binaryMessenger, "launcher_platform/events").also { it.setStreamHandler(this) }
     }
@@ -124,10 +144,26 @@ class LauncherPlatformPlugin :
     override fun onListen(arguments: Any?, sink: EventChannel.EventSink?) {
         events = sink
         launcherApps.registerCallback(packageCallback, main)
+        val filter =
+            IntentFilter().apply {
+                addAction(Intent.ACTION_MANAGED_PROFILE_AVAILABLE)
+                addAction(Intent.ACTION_MANAGED_PROFILE_UNAVAILABLE)
+                addAction(Intent.ACTION_MANAGED_PROFILE_ADDED)
+                addAction(Intent.ACTION_MANAGED_PROFILE_REMOVED)
+            }
+        // Protected system broadcasts, so not exporting the receiver is enough.
+        if (Build.VERSION.SDK_INT >= 33) {
+            context.registerReceiver(profileReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(profileReceiver, filter)
+        }
     }
 
     override fun onCancel(arguments: Any?) {
-        if (events != null) launcherApps.unregisterCallback(packageCallback)
+        if (events != null) {
+            launcherApps.unregisterCallback(packageCallback)
+            context.unregisterReceiver(profileReceiver)
+        }
         events = null
     }
 
@@ -146,6 +182,11 @@ class LauncherPlatformPlugin :
             "startupMillis" ->
                 result.success(SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime())
             "splitServiceEnabled" -> result.success(TurboLaunchAccessibilityService.instance() != null)
+            "lockScreen" -> result.success(lockScreen())
+            "expandNotifications" -> result.success(expandNotifications())
+            "saveTextFile" ->
+                saveTextFile(call.argument<String>("name") ?: "turbolaunch.json", call.argument<String>("content"), result)
+            "openTextFile" -> openTextFile(result)
             "openAccessibilitySettings" -> result.success(startSettings(Settings.ACTION_ACCESSIBILITY_SETTINGS))
             "openHomeSettings" -> result.success(startSettings(Settings.ACTION_HOME_SETTINGS))
             "launchPair" -> launchPair(call.key("first"), call.key("second"), result)
@@ -186,6 +227,8 @@ class LauncherPlatformPlugin :
         val own = Process.myUserHandle()
         return launcherApps.profiles.flatMap { user ->
             val serial = userManager.getSerialNumberForUser(user)
+            // A paused work profile still lists its apps; starting one asks to resume the profile.
+            val paused = user != own && userManager.isQuietModeEnabled(user)
             launcherApps.getActivityList(null, user)
                 .filter { it.applicationInfo.packageName != context.packageName }
                 .map { info ->
@@ -193,6 +236,7 @@ class LauncherPlatformPlugin :
                         "key" to AppKey(info.applicationInfo.packageName, info.name, serial).toString(),
                         "label" to info.label.toString(),
                         "otherProfile" to (user != own),
+                        "paused" to paused,
                     )
                 }
         }
@@ -206,10 +250,23 @@ class LauncherPlatformPlugin :
 
     private fun icon(key: AppKey?, size: Int): ByteArray? {
         val info = resolve(key) ?: return null
+        val updated =
+            try {
+                context.packageManager.getPackageInfo(info.applicationInfo.packageName, 0).lastUpdateTime
+            } catch (e: Exception) {
+                0L
+            }
+        iconCache.read(key!!, size, updated)?.let { return it }
         val drawable = info.getBadgedIcon(0)
         val out = ByteArrayOutputStream()
         drawableToBitmap(drawable, size).compress(Bitmap.CompressFormat.PNG, 100, out)
-        return out.toByteArray()
+        val png = out.toByteArray()
+        try {
+            iconCache.write(key, size, updated, png)
+        } catch (e: IOException) {
+            // A full disk only costs the next start some time.
+        }
+        return png
     }
 
     private fun drawableToBitmap(drawable: Drawable, size: Int): Bitmap {
@@ -281,6 +338,120 @@ class LauncherPlatformPlugin :
             }, PAIR_STEP_MILLIS)
         }, PAIR_STEP_MILLIS)
     }
+
+    /** Locks the phone through the opt-in accessibility service; false when it is off. */
+    private fun lockScreen(): Boolean {
+        val service = TurboLaunchAccessibilityService.instance() ?: return false
+        if (Build.VERSION.SDK_INT < 28) return false
+        return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN).also {
+            Log.i(TAG, "lock screen: $it")
+        }
+    }
+
+    /**
+     * Pulls down the notification shade: through the accessibility service when
+     * it is on, otherwise through the hidden StatusBarManager call that home apps
+     * have long used. That one may disappear in a future Android, so any failure
+     * just returns false.
+     */
+    @Suppress("WrongConstant")
+    private fun expandNotifications(): Boolean {
+        TurboLaunchAccessibilityService.instance()?.let {
+            if (it.performGlobalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)) {
+                Log.i(TAG, "notifications opened through the accessibility service")
+                return true
+            }
+        }
+        return try {
+            val statusBar = context.getSystemService("statusbar") ?: return false
+            statusBar.javaClass.getMethod("expandNotificationsPanel").invoke(statusBar)
+            Log.i(TAG, "notifications opened through the status bar")
+            true
+        } catch (e: Exception) {
+            Log.i(TAG, "notifications could not be opened: $e")
+            false
+        }
+    }
+
+    /**
+     * Settings export: the system "Create document" dialog, so no storage
+     * permission is needed. Answers the chosen file's name, or null when cancelled.
+     */
+    private fun saveTextFile(name: String, content: String?, result: MethodChannel.Result) {
+        if (content == null) return result.error("bad_args", "Nothing to save.", null)
+        val intent =
+            Intent(Intent.ACTION_CREATE_DOCUMENT)
+                .addCategory(Intent.CATEGORY_OPENABLE)
+                .setType("application/json")
+                .putExtra(Intent.EXTRA_TITLE, name)
+        startFileDialog(intent, SAVE_FILE_REQUEST, content, result)
+    }
+
+    /** Settings import: the system "Open document" dialog. Answers the file's text, or null. */
+    private fun openTextFile(result: MethodChannel.Result) {
+        // File managers label .json inconsistently, so accept anything; Dart validates it.
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+        startFileDialog(intent, OPEN_FILE_REQUEST, null, result)
+    }
+
+    private fun startFileDialog(intent: Intent, request: Int, content: String?, result: MethodChannel.Result) {
+        val host = activity ?: return result.error("no_activity", "TurboLaunch is not in front.", null)
+        if (fileResult != null) return result.error("busy", "Another file dialog is already open.", null)
+        fileResult = result
+        fileContent = content
+        try {
+            host.startActivityForResult(intent, request)
+        } catch (e: Exception) {
+            fileResult = null
+            fileContent = null
+            result.error("no_picker", "No file manager app is available.", null)
+        }
+    }
+
+    private fun finishFileDialog(requestCode: Int, resultCode: Int, data: Intent?) {
+        val result = fileResult
+        val content = fileContent
+        fileResult = null
+        fileContent = null
+        val uri = data?.data
+        if (result == null) {
+            // The process died while the dialog was open: drop the empty file an export left.
+            if (requestCode == SAVE_FILE_REQUEST && resultCode == Activity.RESULT_OK && uri != null) {
+                try {
+                    DocumentsContract.deleteDocument(context.contentResolver, uri)
+                } catch (e: Exception) {
+                }
+            }
+            return
+        }
+        if (resultCode != Activity.RESULT_OK || uri == null) return result.success(null)
+        background(result) {
+            val resolver = context.contentResolver
+            if (requestCode == SAVE_FILE_REQUEST) {
+                // "wt" truncates; a few providers reject it, and a new document is empty anyway.
+                val out =
+                    try {
+                        resolver.openOutputStream(uri, "wt")
+                    } catch (e: Exception) {
+                        resolver.openOutputStream(uri, "w")
+                    } ?: throw IOException("Cannot write the selected file.")
+                out.use { it.write((content ?: "").toByteArray(Charsets.UTF_8)) }
+                displayName(uri)
+            } else {
+                val input = resolver.openInputStream(uri) ?: throw IOException("Cannot open the selected file.")
+                input.use { it.readBytes().toString(Charsets.UTF_8) }
+            }
+        }
+    }
+
+    private fun displayName(uri: Uri): String =
+        try {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
+                if (it.moveToFirst()) it.getString(0) else null
+            }
+        } catch (e: Exception) {
+            null
+        } ?: uri.lastPathSegment ?: "the chosen file"
 
     private fun uninstall(key: AppKey?): Boolean {
         if (key == null) return false
@@ -367,6 +538,10 @@ class LauncherPlatformPlugin :
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
+        if (requestCode == SAVE_FILE_REQUEST || requestCode == OPEN_FILE_REQUEST) {
+            finishFileDialog(requestCode, resultCode, data)
+            return true
+        }
         if (requestCode != WALLPAPER_REQUEST) return false
         val result = wallpaperResult ?: return true
         wallpaperResult = null
@@ -386,8 +561,11 @@ class LauncherPlatformPlugin :
     }
 
     private companion object {
+        const val TAG = "TurboLaunch"
         // Time for the window manager to settle between the pair's steps; tuned on device.
         const val PAIR_STEP_MILLIS = 600L
         const val WALLPAPER_REQUEST = 0x7a11
+        const val SAVE_FILE_REQUEST = 0x7a12
+        const val OPEN_FILE_REQUEST = 0x7a13
     }
 }

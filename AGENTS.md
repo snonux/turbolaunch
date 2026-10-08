@@ -23,9 +23,11 @@ flutter build apk --release --split-per-abi
 tool/e2e_android.sh build/app/outputs/flutter-apk/app-x86_64-release.apk  # emulator running
 ```
 
-The Android script installs the APK, makes it the home app, searches and
-launches Settings with Enter, presses Home, checks the accessibility service
-and the log, and leaves screenshots in `build/e2e-android/`. Extend both with
+The Android script installs the APK, turns on the accessibility service
+(uiautomator sees Flutter's text only then), makes it the home app, swipes
+down for the shade, searches and launches Settings with Enter, presses Home,
+checks the grid, menu, quick hide, settings and stats, double-taps to lock,
+checks the log, and leaves screenshots in `build/e2e-android/`. Extend both with
 each feature a PR adds. Anything that can only be checked on a real phone
 (GrapheneOS, split screen) is said plainly in the PR.
 
@@ -38,12 +40,14 @@ rejects 25+).
 | --- | --- |
 | `lib/main.dart` | Picks the app source: Android, or a fake app list on Linux |
 | `lib/services/app_source.dart` | `AppEntry`, the `AppSource` interface, its Android and fake implementations |
-| `lib/services/launcher_controller.dart` | App list, search results, launch counts, the grid, settings, Home presses |
+| `lib/services/launcher_controller.dart` | App list and pairs, search results, launch counts, stats, the grid, settings, export and import, Home presses |
+| `lib/services/app_pairs.dart` | `AppPair`: a saved pair is an app of its own, keyed `pair:<first>\|<second>` |
+| `lib/services/settings_backup.dart` | The export file format (adapted from Quicklog's), validated before anything is written |
 | `lib/services/fuzzy.dart` | The fzf-style scorer (greedy, word starts and runs score higher) |
 | `lib/services/home_grid.dart` | Pure placement rules for the home grid and the automatic grid size |
 | `lib/services/launcher_store.dart` | Settings and state in SharedPreferences |
-| `lib/screens/` | Home screen (clock line, grid, results, search box) and settings |
-| `packages/launcher_platform/` | Kotlin plugin: LauncherApps, icons, launching, package and Home events, the accessibility service |
+| `lib/screens/` | Home screen (clock line, grid, results, search box, gestures), settings, stats |
+| `packages/launcher_platform/` | Kotlin plugin: LauncherApps, icons and their disk cache, launching, package, profile and Home events, file dialogs, the accessibility service |
 
 ### Home grid rules
 
@@ -74,21 +78,37 @@ use the same fake.
 * App visibility comes from a `<queries>` entry for MAIN/LAUNCHER, so
   `QUERY_ALL_PACKAGES` is not needed.
 * The accessibility service `TurboLaunchAccessibilityService` is opt-in and
-  only performs global actions. It reads no window content.
+  only performs global actions: lock screen (double-tap on empty home
+  space), notifications and split screen. It reads no window content.
+* Swipe down (a fling, or a pull of at least 80 dp) uses the service's `GLOBAL_ACTION_NOTIFICATIONS` when it is on,
+  else the hidden `StatusBarManager.expandNotificationsPanel` with
+  `EXPAND_STATUS_BAR`; any failure is silent.
+* Only empty cells listen for double-taps, because a double-tap detector
+  holds single taps back for 300 ms; taps on apps stay instant.
+* Icons are rendered once and kept as PNGs in the cache dir
+  (`IconDiskCache`), named after the app's key and last update time.
+* Work profile apps come from `LauncherApps.getProfiles()`; a paused profile
+  still lists its apps, drawn grey, and starting one asks to resume work apps.
+  Profile broadcasts (available, unavailable, added, removed) refresh the
+  list. Secondary users each install and set up TurboLaunch on their own.
+* Settings export and import use the system Create and Open document
+  dialogs, so no storage permission.
 * Cold start is measured from `Process.getStartElapsedRealtime()` to the
   first Flutter frame and shown in settings (and logged as
   `TurboLaunch cold start`).
 
-### Phase 1 spike: app pairs
+### App pairs
 
-Settings has an "App pair test": pick a top and a bottom app and tap "Open
-pair". It starts the first app, asks the accessibility service for
+Settings saves a pair of a top and a bottom app; "Try it" opens one without
+saving. A pair is an `AppEntry` of its own while both apps are installed, so
+search, launch counts and the grid treat it like any app. Opening it starts
+the first app, asks the accessibility service for
 `GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN`, then starts the second app with
 `FLAG_ACTIVITY_LAUNCH_ADJACENT`. Third-party launchers have no official
-app-pair API, so this needs checking on a GrapheneOS phone before phase 3
-builds app pairs on it. The 600 ms pause between steps
-(`PAIR_STEP_MILLIS`) is a first guess. If it does not work, the fallback is
-to open the first app and show Recents.
+app-pair API, so this still needs checking on a GrapheneOS phone; the
+emulator e2e does not cover it. The 600 ms pause between steps
+(`PAIR_STEP_MILLIS`) is a first guess. Without the service only the first
+app opens.
 
 ## Releasing
 
@@ -134,6 +154,13 @@ agent never creates or replaces the key without Paul's OK.
 A release is: bump `version:`, write the three changelogs, commit, `git tag
 vX.Y.Z; and git push; and git push --tags`.
 
+## Screenshots
+
+The README screenshots in `docs/screenshots/` come from the Linux build at
+phone size, with the demo apps, drawn stand-in icons and a gradient in place
+of the wallpaper. Re-render them with `tool/readme_shots.sh` (needs
+`xvfb-run`) after a visible change. They hold no personal data.
+
 ## Icons
 
 `assets/logo/*.svg` are the sources (the speed T). The PNGs are rendered
@@ -154,10 +181,10 @@ From the plan, one PR per phase:
 1. **Skeleton** (done): project layout, plugin, HOME activity that lists and
    launches apps, release workflow and signing, app-pair spike, cold start
    measured.
-2. **Daily driver** (this): fuzzy search, home grid filled by launch count (cells
+2. **Daily driver** (done): fuzzy search, home grid filled by launch count (cells
    never move once placed), hide, long-press menu, wallpapers, light and dark,
    font sizes, app shortcuts in search, quick hide.
-3. **Profiles and polish**: work profile and multi-user, icon cache, settings
+3. **Profiles and polish** (this): work profile and multi-user, icon cache, settings
    export and import, stats screen, double-tap to lock, swipe for
    notifications, app pairs.
 4. **Release**: first tag through snonux/fdroid, README and usage guide with

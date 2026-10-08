@@ -167,4 +167,76 @@ void main() {
   test('AppEntry exposes the package name of its key', () {
     expect(app('Maps', 'app.organicmaps').packageName, 'app.organicmaps');
   });
+
+  test('a pair is an app while both its apps are installed', () async {
+    final maps = c.apps.firstWhere((a) => a.label == 'maps');
+    final music = c.apps.firstWhere((a) => a.label == 'Music');
+    final pair = c.addPair(maps, music);
+    expect(pair.name, 'maps + Music');
+    expect(titles(), contains('maps + Music'));
+    c.query = 'mapsmus';
+    expect(titles().first, 'maps + Music');
+
+    expect(await c.launchTopMatch(), isTrue);
+    expect(source.pairs.single, (maps, music));
+    expect(c.counts[pair.key], 1);
+    expect(c.grid.values.single.key, pair.key, reason: 'a launched pair earns a cell');
+
+    source.apps = [app('maps'), app('Calendar')];
+    await pumpEventQueue();
+    expect(titles(), isNot(contains('maps + Music')), reason: 'Music is gone');
+    expect(c.grid, isEmpty);
+    expect(c.pairs, [pair], reason: 'the pair itself is kept');
+  });
+
+  test('deleting a pair frees its cell; saving the same two apps again renames it', () async {
+    final maps = c.apps.firstWhere((a) => a.label == 'maps');
+    final music = c.apps.firstWhere((a) => a.label == 'Music');
+    c.addPair(maps, music);
+    final renamed = c.addPair(maps, music, name: 'Drive');
+    expect(c.pairs, [renamed]);
+    await c.launch(c.apps.firstWhere((a) => a.isPair));
+    expect(c.grid, isNotEmpty);
+    c.removePair(renamed);
+    expect(c.grid, isEmpty);
+    expect(store.pairs, isEmpty);
+  });
+
+  test('stats list launched apps, most-launched first, with their cells', () async {
+    final music = c.apps.firstWhere((a) => a.label == 'Music');
+    final cal = c.apps.firstWhere((a) => a.label == 'Calendar');
+    await c.launch(music);
+    await c.launch(cal);
+    await c.launch(cal);
+    expect(
+      [for (final s in c.stats) (s.app.label, s.launches, s.cell)],
+      [('Calendar', 2, const Cell(1, 1)), ('Music', 1, const Cell(1, 0))],
+    );
+  });
+
+  test('export and import carry settings, pairs, counts and cells to another phone', () async {
+    final music = c.apps.firstWhere((a) => a.label == 'Music');
+    await c.launch(music);
+    c.addPair(c.apps.firstWhere((a) => a.label == 'maps'), music);
+    c.setHidden(c.apps.firstWhere((a) => a.label == 'Notes'), true);
+    c.updateSettings(c.settings.copyWith(gridCols: 3, doubleTapLock: false));
+    expect(await c.exportSettings(now: DateTime(2026, 10, 8)), 'turbolaunch-settings-261008.json');
+    final file = source.fileToOpen!;
+
+    final other = await start();
+    expect(other.grid, isEmpty);
+    source.fileToOpen = file;
+    expect(await other.importSettings(), isTrue);
+    other.setAutoGridSize(2, 2);
+    expect(other.grid, {const Cell(1, 0): music});
+    expect(other.pairs.single.name, 'maps + Music');
+    expect(other.hidden, {'org.example.notes/org.example.notes.Main#0'});
+    expect((other.settings.gridCols, other.settings.doubleTapLock), (3, false));
+    other.dispose();
+  });
+
+  test('a cancelled import changes nothing', () async {
+    source.fileToOpen = null;
+    expect(await c.importSettings(), isFalse);
+  });
 }

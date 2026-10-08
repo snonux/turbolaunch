@@ -4,7 +4,7 @@
 # search box lists the device's apps, that a fuzzy search and Enter launch the
 # top match, that Home returns with the search cleared and the launched app on
 # the home grid, that the long-press menu and quick hide work, that cold start
-# is logged, that a swipe down opens the notification shade, that settings sees
+# and home-ready times are logged (again after a restart), that a swipe down opens the notification shade, that settings sees
 # the accessibility service and shows the launch stats, and that a double-tap on
 # empty home space locks the phone. Screenshots, UI dumps and the log go to
 # build/e2e-android/.
@@ -75,11 +75,16 @@ dump; shot home
 expect_focus "home screen is TurboLaunch" "$app"
 expect_ui "search box shown" 'resource-id="search"'
 expect_ui "clock line shows the battery" '[0-9]%'
-if adb logcat -d | grep -q 'TurboLaunch cold start: [0-9]* ms'; then
-  pass "cold start logged: $(adb logcat -d | grep -o 'TurboLaunch cold start: [0-9]* ms' | tail -1)"
-else
-  fail "cold start logged"
-fi
+timings() {
+  for what in 'cold start' 'home ready'; do
+    if adb logcat -d | grep -q "TurboLaunch $what: [0-9]* ms"; then
+      pass "$1 $(adb logcat -d | grep -o "TurboLaunch $what: [0-9]* ms" | tail -1 | sed 's/TurboLaunch //')"
+    else
+      fail "$1 $what logged"
+    fi
+  done
+}
+timings "first start:"
 
 # 2. Tapping the search box lists the device's apps.
 tap_on search && sleep 2
@@ -188,4 +193,15 @@ expect_focus "shade closed, home again" "$app"
 adb logcat -d >"$out/logcat.txt"
 if adb shell pidof "$app" >/dev/null; then pass "still running"; else fail "still running"; fi
 if grep -E "FATAL EXCEPTION|E/flutter|Unhandled Exception" "$out/logcat.txt"; then fail "no errors in the log"; else pass "no errors in the log"; fi
+
+# 11. Timings on a later cold start, with the app list and icons cached as on
+#     a phone that has used TurboLaunch before. Emulator numbers: compare runs,
+#     not phones.
+adb shell am force-stop "$app"
+adb logcat -c
+adb shell input keyevent KEYCODE_HOME
+sleep 8
+timings "cold start again:"
+dump
+expect_ui "home again after the restart" 'resource-id="search"'
 exit $failed

@@ -23,6 +23,15 @@ const _accents = {
 /// Lower case without accents, one output character per input code unit, so
 /// match positions map straight back onto the original string.
 String foldForSearch(String s) {
+  // Plain ASCII, the common case, needs no table.
+  var ascii = true;
+  for (final u in s.codeUnits) {
+    if (u > 0x7f) {
+      ascii = false;
+      break;
+    }
+  }
+  if (ascii) return s.toLowerCase();
   final out = StringBuffer();
   for (final unit in s.split('')) {
     // Lower-casing can lengthen a character ('İ'); keep its first unit only.
@@ -35,6 +44,12 @@ String foldForSearch(String s) {
 
 bool _isWordStart(String text, int i) {
   if (i == 0) return true;
+  final p = text.codeUnitAt(i - 1), u = text.codeUnitAt(i);
+  // ASCII letters and digits, the common case, without building strings.
+  if (p < 0x80 && u < 0x80) {
+    final pLower = p >= 0x61 && p <= 0x7a, pUpper = p >= 0x41 && p <= 0x5a, pDigit = p >= 0x30 && p <= 0x39;
+    if (pLower || pUpper || pDigit) return pLower && u >= 0x41 && u <= 0x5a;
+  }
   final prev = text[i - 1];
   final cur = text[i];
   if (' -_./:·&+'.contains(prev)) return true;
@@ -57,16 +72,19 @@ const _gapPenalty = 2;
 /// position right after the previous match, the earliest occurrence. That is
 /// a greedy pass, not fzf's full optimum, but it is predictable and fast
 /// enough for a few hundred apps on every keystroke.
-FuzzyMatch? fuzzyMatch(String query, String text) {
-  final q = foldForSearch(query).replaceAll(' ', '');
+///
+/// Callers matching one query against many texts pass [foldedQuery] and
+/// [foldedText] (from [foldForSearch]) so neither is folded again each time.
+FuzzyMatch? fuzzyMatch(String query, String text, {String? foldedQuery, String? foldedText}) {
+  final q = (foldedQuery ?? foldForSearch(query)).replaceAll(' ', '');
   if (q.isEmpty) return const FuzzyMatch(0, []);
-  final t = foldForSearch(text);
+  final t = foldedText ?? foldForSearch(text);
   if (t.length < q.length) return null;
 
   // Quick reject: every letter must exist in order.
   var probe = 0;
   for (var i = 0; i < t.length && probe < q.length; i++) {
-    if (t[i] == q[probe]) probe++;
+    if (t.codeUnitAt(i) == q.codeUnitAt(probe)) probe++;
   }
   if (probe < q.length) return null;
 
@@ -74,12 +92,12 @@ FuzzyMatch? fuzzyMatch(String query, String text) {
   var score = 0;
   var from = 0;
   for (var qi = 0; qi < q.length; qi++) {
-    final c = q[qi];
+    final c = q.codeUnitAt(qi);
     final remaining = q.length - qi - 1;
     int? best;
     var bestScore = -1 << 30;
     for (var i = from; i < t.length; i++) {
-      if (t[i] != c) continue;
+      if (t.codeUnitAt(i) != c) continue;
       // The rest of the query must still fit after i.
       if (!_fits(q, qi + 1, t, i + 1)) break;
       var s = 0;
@@ -105,7 +123,7 @@ FuzzyMatch? fuzzyMatch(String query, String text) {
 
 bool _fits(String q, int qi, String t, int ti) {
   for (var i = ti; i < t.length && qi < q.length; i++) {
-    if (t[i] == q[qi]) qi++;
+    if (t.codeUnitAt(i) == q.codeUnitAt(qi)) qi++;
   }
   return qi >= q.length;
 }

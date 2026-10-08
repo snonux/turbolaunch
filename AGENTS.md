@@ -95,7 +95,25 @@ use the same fake.
   dialogs, so no storage permission.
 * Cold start is measured from `Process.getStartElapsedRealtime()` to the
   first Flutter frame and shown in settings (and logged as
-  `TurboLaunch cold start`).
+  `TurboLaunch cold start`); `TurboLaunch home ready` is the first frame with
+  the apps. The Android e2e prints both, for the first start and for a
+  restart with everything cached.
+
+### Speed
+
+What keeps it fast, and should stay that way:
+
+* The app list from the last run is kept (`appSnapshot`), so a cold start
+  draws the home grid on its first frame; the live list replaces it.
+* The grid draws placed cells on the first frame, before the controller
+  knows the size.
+* Shortcuts load after the apps, never in front of them.
+* Search folds each label once per app list, not per keystroke, and the
+  scorer compares code units, not one-letter strings.
+* The plugin remembers the activities `listApps` found, so icon and launch
+  calls need no binder call to find the app again. An icon's cache stamp is
+  its APK's file time (no binder call); a new system build empties the
+  icon cache.
 
 ### App pairs
 

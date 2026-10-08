@@ -403,7 +403,12 @@ class _HomeGrid extends StatelessWidget {
         if (!keyboardOpen) {
           WidgetsBinding.instance.addPostFrameCallback((_) => controller.setAutoGridSize(auto.rows, auto.cols));
         }
-        final rows = controller.rows, cols = controller.cols;
+        // Before the controller has the size (the very first frame), draw the
+        // cells already placed at the size this screen gives, so a cold start
+        // shows the grid at once instead of a frame later.
+        final (rows, cols) = controller.rows > 0
+            ? (controller.rows, controller.cols)
+            : controller.gridSizeFor(auto.rows, auto.cols);
         if (rows == 0 || cols == 0) return const SizedBox.shrink();
         final grid = controller.grid;
         return Column(

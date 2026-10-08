@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:launcher_platform/launcher_platform.dart';
@@ -49,6 +51,21 @@ void main() {
     await tester.tap(find.byKey(const Key('search')));
     await tester.pumpAndSettle();
   }
+
+  testWidgets('a cold start draws the placed apps on its very first frame', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2280);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+    // The last run left an app list and a placed app; this run's list never arrives.
+    SharedPreferences.setMockInitialValues({
+      'appSnapshot': '[{"key": "org.example.maps/org.example.maps.Main#0", "label": "Maps"}]',
+      'homeSlots': '{"6,0": "org.example.maps/org.example.maps.Main#0"}',
+      'launchCounts': '{"org.example.maps/org.example.maps.Main#0": 3}',
+    });
+    final store = await LauncherStore.open();
+    await tester.pumpWidget(TurboLaunchApp(source: _NeverListing(), store: store));
+    expect(find.byKey(const ValueKey('cell-org.example.maps/org.example.maps.Main#0')), findsOneWidget);
+  });
 
   testWidgets('the home screen starts with an empty grid, the clock and the search box', (tester) async {
     await start(tester);
@@ -398,4 +415,12 @@ void main() {
     expect(node.rect.height, lessThan(grid.height / 2));
     semantics.dispose();
   });
+}
+
+/// A device whose app list never arrives, as on a slow cold start.
+class _NeverListing extends FakeAppSource {
+  _NeverListing() : super(const []);
+
+  @override
+  Future<List<AppEntry>> listApps() => Completer<List<AppEntry>>().future;
 }

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_pairs.dart';
+import 'app_source.dart';
 import 'home_grid.dart';
 
 /// User settings, all with defaults that work without any setup.
@@ -115,6 +116,7 @@ class LauncherStore {
   static const _settings = 'settings';
   static const _quickHide = 'quickHide';
   static const _pairs = 'appPairs';
+  static const _appSnapshot = 'appSnapshot';
 
   Map<String, Object?> _json(String key) {
     final raw = _prefs.getString(key);
@@ -163,6 +165,38 @@ class LauncherStore {
   }
 
   Future<void> setPairs(List<AppPair> v) => _prefs.setString(_pairs, jsonEncode([for (final p in v) p.toJson()]));
+
+  /// The installed apps as last listed, shown while a cold start lists them again.
+  List<AppEntry> get appSnapshot {
+    final raw = _prefs.getString(_appSnapshot);
+    if (raw == null) return const [];
+    try {
+      final v = jsonDecode(raw);
+      if (v is! List) return const [];
+      return [
+        for (final a in v)
+          if (a is Map && a['key'] is String && a['label'] is String)
+            AppEntry(
+              key: a['key'] as String,
+              label: a['label'] as String,
+              otherProfile: a['otherProfile'] == true,
+              paused: a['paused'] == true,
+            ),
+      ];
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  Future<void> setAppSnapshot(List<AppEntry> apps) {
+    final json = jsonEncode([
+      for (final a in apps)
+        {'key': a.key, 'label': a.label, if (a.otherProfile) 'otherProfile': true, if (a.paused) 'paused': true},
+    ]);
+    // Most starts list the same apps; skip the write then.
+    if (_prefs.getString(_appSnapshot) == json) return Future.value();
+    return _prefs.setString(_appSnapshot, json);
+  }
 
   bool get quickHide => _prefs.getBool(_quickHide) ?? false;
   Future<void> setQuickHide(bool v) => _prefs.setBool(_quickHide, v);

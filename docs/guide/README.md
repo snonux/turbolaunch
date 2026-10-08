@@ -1,0 +1,224 @@
+# The TurboLaunch guide
+
+TurboLaunch is a home screen for Android that you mostly type into. This
+guide shows every feature, with screenshots and a short recording taken on
+the Android emulator by `tool/shots_android.sh`, so the apps in them are the
+emulator's own.
+
+1. [Installing](#installing)
+2. [The home screen](#the-home-screen)
+3. [Searching](#searching)
+4. [The home grid](#the-home-grid)
+5. [The app menu and hidden apps](#the-app-menu-and-hidden-apps)
+6. [Gestures](#gestures)
+7. [App pairs](#app-pairs)
+8. [Work profile apps](#work-profile-apps)
+9. [Settings](#settings)
+10. [Launch stats](#launch-stats)
+11. [Moving to a new phone](#moving-to-a-new-phone)
+12. [Privacy and permissions](#privacy-and-permissions)
+13. [Building it yourself](#building-it-yourself)
+
+## Installing
+
+TurboLaunch comes from the
+[snonux F-Droid repository](https://github.com/snonux/fdroid). Add it once
+on the phone by tapping
+**[Add to F-Droid](https://fdroid.link/#https://snonux.github.io/fdroid/repo?fingerprint=04B05FB0565543E058372B867B3D3A699D9D668388CE670478EDD4116D736DF7)**,
+or by hand in F-Droid under *Settings, Repositories, +*:
+
+* Address: `https://snonux.github.io/fdroid/repo`
+* Fingerprint: `04B05FB0565543E058372B867B3D3A699D9D668388CE670478EDD4116D736DF7`
+
+Then install TurboLaunch like any F-Droid app. F-Droid offers updates when
+a new version comes out. The APKs are also attached to every
+[GitHub release](https://github.com/snonux/turbolaunch/releases); take
+`app-arm64-v8a-release.apk` for a current phone.
+
+Press Home once installed, and Android asks which home app to use. Pick
+TurboLaunch and "Always". If it does not ask, open TurboLaunch's settings
+(the sliders button next to the search box) and tap **Set as home app**, or go to
+*Settings, Apps, Default apps, Home app*. Your old launcher stays installed,
+so you can always switch back the same way.
+
+## The home screen
+
+![The home screen: time, date and battery on top, a grid of apps near the bottom, the search box below](images/home.png)
+
+From top to bottom:
+
+* **The clock line**: time, date and battery. Long-press it to hide the
+  grid, for example while sharing your screen (see
+  [Quick hide](#gestures)).
+* **Your wallpaper**, with empty space you can double-tap to lock the
+  phone.
+* **The home grid** of your most-used apps, the most-launched nearest your
+  thumb.
+* **The search box**, always there at the bottom, with the settings button
+  beside it.
+
+Pressing Home while TurboLaunch is in front clears the search and closes
+settings, so Home always brings you back to this screen.
+
+## Searching
+
+![Typing "ch" lists Chrome and Chrome's shortcuts, the matched letters highlighted](images/search.png)
+
+Tap the search box (or turn on **Open the keyboard on Home** in settings)
+and type a few letters of the app. The search works like
+[fzf](https://github.com/junegunn/fzf): the letters must come in order but
+may have gaps, so "orgm" finds Organic Maps and "sttngs" finds Settings.
+Letters at the start of a word, and letters next to each other, count for
+more, so the app you mean is usually first. Matched letters are
+highlighted.
+
+**Enter opens the top result.** Tapping any result opens that one.
+
+App shortcuts are results too, below the apps: "New tab" for the browser,
+"New note", "Navigate home" and whatever else your apps offer on a
+long-press elsewhere.
+
+![Typing "clk", Enter opens Clock, Home comes back to the grid](images/search.gif)
+
+The × in the search box, Back or Home clear the search.
+
+## The home grid
+
+Every launch counts. The apps you launch most get a cell on the home grid,
+filled from the bottom row up, left to right, so the favourites sit right
+above the search box.
+
+**An app that has a cell keeps it.** Icons never shuffle around as counts
+change; your thumb learns where things are. A cell only frees up when you
+uninstall or hide the app, choose **Remove from home**, or make the grid
+smaller than the app's cell. The next most-launched app without a cell
+then takes it.
+
+The grid sizes itself from the screen: one column per 80 dp and one row
+per 96 dp, fewer with bigger labels. Set the rows and columns yourself under
+**Home grid** in settings if you want more or fewer.
+
+## The app menu and hidden apps
+
+![The long-press menu of Camera: Remove from home, Hide, App info, Uninstall](images/menu.png)
+
+Long-press an app, on the grid or in the search results:
+
+* **Remove from home** takes it off the grid and keeps it off. It stays in
+  search. **Add to home** brings it back.
+* **Hide** takes it out of search and off the grid. Hidden apps are listed
+  in settings under **Hidden apps**, with **Unhide**.
+* **App info** opens Android's page for the app.
+* **Uninstall** asks Android to remove it.
+
+## Gestures
+
+* **Swipe down** anywhere on the home screen to pull down the notification
+  shade.
+* **Double-tap empty space** to lock the phone. Taps on apps stay instant;
+  only empty cells and wallpaper listen for double-taps.
+* **Long-press the clock line** to hide the grid (quick hide), and again to
+  show it.
+
+Locking needs the accessibility service, see
+[Privacy and permissions](#privacy-and-permissions). Turn each gesture
+on or off under **Gestures** in settings.
+
+## App pairs
+
+An app pair opens two apps in split screen, one above the other, with one
+tap. Make one in settings under **App pairs**: pick a **Top app** and a
+**Bottom app**, give it a name if you like, and **Save pair**. **Try it**
+opens them without saving.
+
+A saved pair is an app of its own: it shows up in search, counts its
+launches and earns a home cell like any app. If you uninstall one of its
+two apps, the pair disappears until it is back.
+
+Opening a pair needs the accessibility service, which switches into split
+screen. Without it only the top app opens.
+
+## Work profile apps
+
+Apps in a work profile (for example one made by Shelter, Insular or your
+employer) are listed and searchable with a small badge. While work apps are
+paused they are drawn grey, and opening one asks Android to resume them.
+
+On a phone with several users, each user installs and sets up TurboLaunch
+on their own.
+
+## Settings
+
+![Settings: set as home app, cold start time, launch stats, wallpaper and home grid](images/settings.png)
+
+The sliders button next to the search box opens settings:
+
+* **Set as home app** opens Android's list of home apps.
+* **Cold start** shows how long TurboLaunch took from start to its first
+  frame.
+* **Launch stats**, see below.
+* **Wallpaper**: pick a picture for the home screen, the lock screen or
+  both. The home screen shows Android's wallpaper through it.
+* **Home grid**: columns and rows (Auto, or a number), and whether to show
+  the clock line.
+* **Search**: open the keyboard on Home, and icons in the search results.
+* **Gestures**: the accessibility service, double-tap to lock and swipe
+  down for notifications.
+* **Font sizes** for grid labels, search results and the clock line.
+* **Hidden apps**, **App pairs** and **Your data** (export and import).
+
+Light and dark follow the system setting.
+
+## Launch stats
+
+![Launch stats: launch counts per app and the cell each app sits in](images/stats.png)
+
+How often you launched each app on this phone, and which home cell it
+holds.
+
+## Moving to a new phone
+
+**Export settings** under **Your data** saves everything in one JSON file:
+settings, app pairs, hidden apps, launch counts and the home grid. Copy it
+to the new phone and use **Import settings** there. Android's own file
+dialogs do the saving and opening, so TurboLaunch needs no storage
+permission.
+
+Import replaces what is on the phone; it asks first.
+
+## Privacy and permissions
+
+TurboLaunch has no internet permission, no tracking, no ads and no Google
+Play Services. Everything stays on the phone.
+
+It asks for:
+
+* **Set wallpaper**, for the wallpaper setting.
+* **Request uninstall**, so the menu can ask Android to uninstall an app
+  (Android still asks you).
+* **Expand status bar**, for swipe down when the accessibility service is
+  off. It uses a hidden Android call that home apps have long relied on; if
+  a future Android removes it, the swipe simply does nothing.
+
+**The accessibility service "TurboLaunch actions" is optional and off
+until you turn it on** under *Settings, Accessibility* (the **Accessibility
+service** line in TurboLaunch's settings takes you there). It only performs
+three system actions: lock the screen on a double-tap, pull down the
+notifications, and switch into split screen for an app pair. It reads no
+screen content and sees nothing you type.
+
+## Building it yourself
+
+You need Flutter (the version in `.flutter-version`), JDK 17 or 21 and the
+Android SDK:
+
+```sh
+git clone https://github.com/snonux/turbolaunch.git
+cd turbolaunch
+flutter build apk --release --split-per-abi
+adb install build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+```
+
+Without a release key the build is signed with the debug key, so it does
+not update the F-Droid version (uninstall that first). Building, testing and
+releasing are described in [AGENTS.md](../../AGENTS.md).

@@ -1,0 +1,110 @@
+# Every push, to any branch: format, analyzer and unit tests (Dart and the
+# Kotlin plugin), the split release APKs signed with the debug key, and the
+# end-to-end run: tool/e2e_android.sh on an Android emulator.
+name: CI
+
+# A pull request's branch is pushed too, so push alone covers it.
+on:
+  push:
+  workflow_dispatch:
+
+# A newer push to the same branch cancels the older run, except on main.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  test:
+    name: Analyze and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: echo "flutter=$(tr -d '[:space:]' < .flutter-version)" >> "$GITHUB_OUTPUT"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ steps.version.outputs.flutter }}
+          channel: stable
+          cache: true
+      - run: flutter pub get --enforce-lockfile
+      - name: dart format
+        run: dart format --output=none --set-exit-if-changed lib test packages/launcher_platform/lib
+      - run: flutter analyze
+      - run: flutter test
+
+  apk:
+    name: Android APKs and Kotlin tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: echo "flutter=$(tr -d '[:space:]' < .flutter-version)" >> "$GITHUB_OUTPUT"
+      # F-Droid's builder uses JDK 17; Gradle 8.14 rejects 25+.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ steps.version.outputs.flutter }}
+          channel: stable
+          cache: true
+      - name: flutter build apk --split-per-abi
+        # No release key in CI: without android/key.properties the build is
+        # signed with the debug key.
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter build apk --release --split-per-abi
+      - name: Kotlin unit tests of the launcher_platform plugin
+        working-directory: android
+        run: ./gradlew --no-daemon :launcher_platform:testDebugUnitTest
+      - name: Version codes are counter * 10 + abi
+        run: |
+          counter=$(sed -n 's/^version: *[^+]*+//p' pubspec.yaml)
+          aapt=$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          for pair in armeabi-v7a:1 arm64-v8a:2 x86_64:3; do
+            abi=${pair%%:*}; want=$((counter * 10 + ${pair##*:}))
+            got=$("$aapt" dump badging "build/app/outputs/flutter-apk/app-$abi-release.apk" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
+            echo "$abi: $got (want $want)"
+            [ "$got" = "$want" ]
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: build/app/outputs/flutter-apk/app-*-release.apk
+          retention-days: 7
+
+  e2e-android:
+    name: e2e on an Android emulator
+    needs: apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: apks
+          path: apks
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: tool/e2e_android.sh on Android 14
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: tool/e2e_android.sh apks/app-x86_64-release.apk
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-android
+          path: build/e2e-android/
+          retention-days: 14
+          if-no-files-found: ignore

@@ -13,6 +13,22 @@ build a release APK too, `flutter build apk --release --split-per-abi`,
 because the debug build hides signing and packaging problems. CI runs all of
 this, plus the plugin's Kotlin unit tests, on every push.
 
+**Every merge needs a full end-to-end run first** (snonux, 2026-10-08), not
+just green CI: `integration_test/` on the Linux build and
+`tool/e2e_android.sh` on an Android emulator, both run by CI:
+
+```sh
+xvfb-run -a flutter test integration_test -d linux
+flutter build apk --release --split-per-abi
+tool/e2e_android.sh build/app/outputs/flutter-apk/app-x86_64-release.apk  # emulator running
+```
+
+The Android script installs the APK, makes it the home app, searches and
+launches Settings with Enter, presses Home, checks the accessibility service
+and the log, and leaves screenshots in `build/e2e-android/`. Extend both with
+each feature a PR adds. Anything that can only be checked on a real phone
+(GrapheneOS, split screen) is said plainly in the PR.
+
 Toolchain: Flutter from `.flutter-version`, JDK **17 or 21** (Gradle 8.14
 rejects 25+).
 
@@ -22,9 +38,23 @@ rejects 25+).
 | --- | --- |
 | `lib/main.dart` | Picks the app source: Android, or a fake app list on Linux |
 | `lib/services/app_source.dart` | `AppEntry`, the `AppSource` interface, its Android and fake implementations |
-| `lib/services/launcher_controller.dart` | App list, search query, launching, Home presses |
-| `lib/screens/` | Home screen and settings |
+| `lib/services/launcher_controller.dart` | App list, search results, launch counts, the grid, settings, Home presses |
+| `lib/services/fuzzy.dart` | The fzf-style scorer (greedy, word starts and runs score higher) |
+| `lib/services/home_grid.dart` | Pure placement rules for the home grid and the automatic grid size |
+| `lib/services/launcher_store.dart` | Settings and state in SharedPreferences |
+| `lib/screens/` | Home screen (clock line, grid, results, search box) and settings |
 | `packages/launcher_platform/` | Kotlin plugin: LauncherApps, icons, launching, package and Home events, the accessibility service |
+
+### Home grid rules
+
+Cells are `(row, col)`. A placed app keeps its cell; only uninstalling it,
+hiding it, "Remove from home", or shrinking the grid below its cell frees
+the cell. Free cells go to the most-launched apps without one, bottom row
+first, left to right, ties by key so phones agree. "Remove from home" keeps
+the app off the grid until "Add to home". The automatic size is one column
+per 80 dp and one row per 96 dp (more with bigger labels); settings can
+override either. The grid ignores the size while the keyboard is open, so
+typing never cuts cells.
 
 Apps are identified everywhere by the key `package/activity#userSerial`.
 User serials survive reboots, user handles do not; later phases store launch
@@ -94,37 +124,15 @@ git-ignored and optional; without it release builds use the debug key and say
 so. Keep the key at `keys/turbolaunch-release.jks` (git-ignored) and back it
 and `key.properties` up in `~/.foostore-export/`.
 
-### One-time setup (Paul)
+### Signing and secrets (done)
 
-An agent's token cannot write `.github/workflows/`, so the release workflow
-waits at `ci/workflows/release.yml`. Create the key, move the workflow and set
-the secrets (fish):
+The workflows live in `.github/workflows/` (an agent's token cannot write
+there; Paul moves new ones). The release key and the four `ANDROID_*`
+secrets are set up Quicklog-style, with the key in Paul's local foostore. An
+agent never creates or replaces the key without Paul's OK.
 
-```fish
-mkdir -p keys
-set pw (openssl rand -hex 16)
-keytool -genkeypair -noprompt -keystore keys/turbolaunch-release.jks -storetype PKCS12 \
-  -alias turbolaunch -keyalg RSA -keysize 4096 -validity 36500 \
-  -dname "CN=TurboLaunch" -storepass $pw -keypass $pw
-printf 'storeFile=%s\nstorePassword=%s\nkeyAlias=turbolaunch\nkeyPassword=%s\n' \
-  (realpath keys/turbolaunch-release.jks) $pw $pw > android/key.properties
-chmod 600 keys/turbolaunch-release.jks android/key.properties
-cp keys/turbolaunch-release.jks android/key.properties ~/.foostore-export/
-
-git mv ci/workflows/release.yml .github/workflows/
-git commit -m "Enable release workflow"; and git push
-
-function get; sed -n "s/^$argv[1]=//p" android/key.properties; end
-base64 -w0 (get storeFile) | gh secret set ANDROID_KEYSTORE
-gh secret set ANDROID_KEY_ALIAS --body (get keyAlias)
-gh secret set ANDROID_KEYSTORE_PASSWORD --body (get storePassword)
-gh secret set ANDROID_KEY_PASSWORD --body (get keyPassword)
-```
-
-Optionally `gh secret set FDROID_DISPATCH_TOKEN` (Contents read/write on
-snonux/fdroid) so a release shows up at once. Then a release is: bump
-`version:`, write the three changelogs, commit, `git tag vX.Y.Z; and git push;
-and git push --tags`.
+A release is: bump `version:`, write the three changelogs, commit, `git tag
+vX.Y.Z; and git push; and git push --tags`.
 
 ## Icons
 
@@ -143,10 +151,10 @@ dart run flutter_launcher_icons
 
 From the plan, one PR per phase:
 
-1. **Skeleton** (this): project layout, plugin, HOME activity that lists and
+1. **Skeleton** (done): project layout, plugin, HOME activity that lists and
    launches apps, release workflow and signing, app-pair spike, cold start
    measured.
-2. **Daily driver**: fuzzy search, home grid filled by launch count (cells
+2. **Daily driver** (this): fuzzy search, home grid filled by launch count (cells
    never move once placed), hide, long-press menu, wallpapers, light and dark,
    font sizes, app shortcuts in search, quick hide.
 3. **Profiles and polish**: work profile and multi-user, icon cache, settings

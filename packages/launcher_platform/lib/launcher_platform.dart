@@ -15,6 +15,19 @@ class PlatformApp {
   final bool otherProfile;
 }
 
+/// One long-press shortcut of an app ("New note", "Navigate home").
+class PlatformShortcut {
+  const PlatformShortcut({required this.packageName, required this.id, required this.userSerial, required this.label});
+
+  final String packageName;
+  final String id;
+  final int userSerial;
+  final String label;
+}
+
+/// Which screens a picked wallpaper goes on.
+enum WallpaperTarget { home, lock, both }
+
 /// How [LauncherPlatform.launchPair] ended.
 enum PairOutcome { split, noService, failed }
 
@@ -68,4 +81,37 @@ class LauncherPlatform {
       _ => PairOutcome.failed,
     };
   }
+
+  /// Battery level in percent.
+  Future<int> battery() async => await _channel.invokeMethod<int>('battery') ?? -1;
+
+  /// Opens the system's uninstall confirmation for the app.
+  Future<bool> uninstall(String key) async => await _channel.invokeMethod<bool>('uninstall', {'key': key}) ?? false;
+
+  /// Every app's shortcuts; empty unless TurboLaunch is the default home app.
+  Future<List<PlatformShortcut>> shortcuts() async {
+    final raw = await _channel.invokeListMethod<Map<Object?, Object?>>('shortcuts') ?? const [];
+    return [
+      for (final m in raw)
+        PlatformShortcut(
+          packageName: m['package'] as String,
+          id: m['id'] as String,
+          userSerial: (m['userSerial'] as num).toInt(),
+          label: m['label'] as String,
+        ),
+    ];
+  }
+
+  Future<bool> startShortcut(PlatformShortcut s) async =>
+      await _channel.invokeMethod<bool>('startShortcut', {
+        'package': s.packageName,
+        'id': s.id,
+        'userSerial': s.userSerial,
+      }) ??
+      false;
+
+  /// Lets the user pick an image and sets it as wallpaper. True when set,
+  /// false on failure, null when the user cancelled the picker.
+  Future<bool?> pickWallpaper(WallpaperTarget target) =>
+      _channel.invokeMethod<bool>('pickWallpaper', {'target': target.name});
 }

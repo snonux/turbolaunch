@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Setting the home and lock screen wallpapers from settings. -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER"/>
+    <!-- Uninstall from the long-press menu (the system still asks to confirm). -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES"/>
     <application
         android:label="TurboLaunch"
         android:name="${applicationName}"

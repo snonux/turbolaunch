@@ -7,18 +7,22 @@ Home, type two or three letters, hit Enter, and the app opens. No tracking,
 no Google Play Services; the only network use will be optional sync to your
 own S3 bucket.
 
-**Status: phase 1 of 5 (skeleton).** It lists and launches every app,
-including work profile apps, with a search box docked at the bottom. Fuzzy
-search, the self-filling home grid, wallpapers, S3 sync and the F-Droid
-release follow; see the plan in [AGENTS.md](AGENTS.md#roadmap).
+**Status: phase 2 of 5 (daily driver).** S3 sync, the stats screen,
+gestures and the F-Droid release follow; see the roadmap in
+[AGENTS.md](AGENTS.md#roadmap).
 
 ## Highlights
 
-* Every installed app over your wallpaper, icons fully opaque
-* Search box always on screen, within thumb reach; Enter launches the top match
-* Home clears the search; Back never leaves the home screen
-* Long-press for app info
-* App pairs (test): open two apps side by side through an opt-in accessibility service
+* fzf-style search: letters in order, gaps allowed, so "orgm" finds Organic
+  Maps; matched letters highlighted; Enter launches the top match
+* A home grid that fills itself with your most-launched apps, nearest the
+  thumb first, and never moves an icon once placed
+* App shortcuts ("New note", "Navigate home") are search results too
+* Search box always on screen at the bottom; Home clears it
+* Long-press an app: remove from or add to home, hide, app info, uninstall
+* Clock, date and battery on top; long-press it to hide the grid (quick hide)
+* Home and lock screen wallpapers, grid size and three font sizes in settings
+* Work profile apps included, with a badge
 
 ## Try it
 

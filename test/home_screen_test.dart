@@ -291,6 +291,19 @@ void main() {
     expect(source.shades, 1);
   });
 
+  testWidgets('a slow pull down far enough opens the shade too; short or upward drags do not', (tester) async {
+    await start(tester);
+    final grid = find.byKey(const Key('home-grid'));
+    await tester.timedDrag(grid, const Offset(0, 20), const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    await tester.timedDrag(grid, const Offset(0, -200), const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(source.shades, 0);
+    await tester.timedDrag(grid, const Offset(0, 200), const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(source.shades, 1);
+  });
+
   testWidgets('the stats screen lists launch counts and home cells', (tester) async {
     await start(tester, {
       'launchCounts':

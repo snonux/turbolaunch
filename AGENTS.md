@@ -80,7 +80,7 @@ use the same fake.
 * The accessibility service `TurboLaunchAccessibilityService` is opt-in and
   only performs global actions: lock screen (double-tap on empty home
   space), notifications and split screen. It reads no window content.
-* Swipe down uses the service's `GLOBAL_ACTION_NOTIFICATIONS` when it is on,
+* Swipe down (a fling, or a pull of at least 80 dp) uses the service's `GLOBAL_ACTION_NOTIFICATIONS` when it is on,
   else the hidden `StatusBarManager.expandNotificationsPanel` with
   `EXPAND_STATUS_BAR`; any failure is silent.
 * Only empty cells listen for double-taps, because a double-tap detector

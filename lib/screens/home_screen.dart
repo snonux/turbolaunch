@@ -132,6 +132,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// How far the current vertical drag has gone down, in logical pixels.
+  double _pull = 0;
+  static const _pullToOpen = 80.0;
+
   /// Swipe down on the home screen: the notification shade. Fails silently.
   Widget _gestures(Widget child) {
     if (!_c.settings.swipeNotifications) return child;
@@ -140,10 +144,11 @@ class _HomeScreenState extends State<HomeScreen> {
       // Its scroll actions would merge every cell into one semantics node,
       // so TalkBack (and uiautomator) could no longer tell the apps apart.
       excludeFromSemantics: true,
-      onVerticalDragStart: (d) => debugPrint('TurboLaunch DEBUG drag start ${d.globalPosition}'),
+      // A fling down, or a slower pull that goes far enough.
+      onVerticalDragStart: (_) => _pull = 0,
+      onVerticalDragUpdate: (d) => _pull += d.delta.dy,
       onVerticalDragEnd: (d) {
-        debugPrint('TurboLaunch DEBUG drag end ${d.primaryVelocity}');
-        if ((d.primaryVelocity ?? 0) > 300) _c.source.expandNotifications();
+        if ((d.primaryVelocity ?? 0) > 300 || _pull > _pullToOpen) _c.source.expandNotifications();
       },
       child: child,
     );

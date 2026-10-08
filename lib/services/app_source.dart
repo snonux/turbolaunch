@@ -76,7 +76,7 @@ enum AppSourceEvent {
 }
 
 /// Everything the UI needs from the device. [PlatformAppSource] talks to
-/// Android; [FakeAppSource] serves the Linux desktop build and the tests.
+/// Android; [FakeAppSource] serves the tests.
 abstract class AppSource {
   Stream<AppSourceEvent> get events;
   Future<List<AppEntry>> listApps();
@@ -197,37 +197,6 @@ class FakeAppSource implements AppSource {
     : _apps = List.of(apps),
       _shortcuts = List.of(shortcuts);
 
-  /// A plausible set of free apps, for the Linux desktop build.
-  factory FakeAppSource.demo() => FakeAppSource(
-    [
-      for (final (pkg, label) in const [
-        ('org.mozilla.fennec_fdroid', 'Fennec'),
-        ('app.organicmaps', 'Organic Maps'),
-        ('org.fossify.gallery', 'Gallery'),
-        ('org.fossify.calendar', 'Calendar'),
-        ('org.fossify.clock', 'Clock'),
-        ('org.fossify.contacts', 'Contacts'),
-        ('org.fossify.messages', 'Messages'),
-        ('org.fossify.phone', 'Phone'),
-        ('org.fossify.notes', 'Notes'),
-        ('com.github.libretube', 'LibreTube'),
-        ('de.danoeh.antennapod', 'AntennaPod'),
-        ('org.buetow.quicklog', 'Quicklog'),
-        ('app.grapheneos.camera', 'Camera'),
-        ('com.android.settings', 'Settings'),
-        ('net.osmand.plus', 'OsmAnd~'),
-        ('org.thoughtcrime.securesms', 'Molly'),
-        ('com.termux', 'Termux'),
-        ('ch.protonmail.android', 'Proton Mail'),
-      ])
-        AppEntry(key: '$pkg/$pkg.MainActivity#0', label: label),
-    ],
-    shortcuts: const [
-      ShortcutEntry(packageName: 'org.fossify.notes', id: 'new', userSerial: 0, label: 'New note'),
-      ShortcutEntry(packageName: 'app.organicmaps', id: 'home', userSerial: 0, label: 'Navigate home'),
-    ],
-  );
-
   List<AppEntry> _apps;
   final List<ShortcutEntry> _shortcuts;
   final launched = <AppEntry>[];
@@ -291,7 +260,7 @@ class FakeAppSource implements AppSource {
   @override
   Future<String?> saveTextFile(String name, String content) async {
     savedFiles[name] = content;
-    // The Linux dev loop opens what it last saved.
+    // An import opens what the last export saved.
     fileToOpen = content;
     return name;
   }

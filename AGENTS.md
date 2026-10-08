@@ -1,7 +1,7 @@
 # Working on TurboLaunch
 
-TurboLaunch is a Flutter app (Android only in production, Linux desktop for
-development) that replaces the home screen. The stack and release process
+TurboLaunch is a Flutter app for Android only (snonux, 2026-10-08: no Linux
+build) that replaces the home screen. The stack and release process
 follow [Quicklog](https://github.com/snonux/quicklog): Flutter for the UI and
 logic, plus one small Kotlin plugin, `packages/launcher_platform`, for the
 Android launcher APIs. The README is for people using the app; keep it short
@@ -14,11 +14,9 @@ because the debug build hides signing and packaging problems. CI runs all of
 this, plus the plugin's Kotlin unit tests, on every push.
 
 **Every merge needs a full end-to-end run first** (snonux, 2026-10-08), not
-just green CI: `integration_test/` on the Linux build and
-`tool/e2e_android.sh` on an Android emulator, both run by CI:
+just green CI: `tool/e2e_android.sh` on an Android emulator, which CI runs:
 
 ```sh
-xvfb-run -a flutter test integration_test -d linux
 flutter build apk --release --split-per-abi
 tool/e2e_android.sh build/app/outputs/flutter-apk/app-x86_64-release.apk  # emulator running
 ```
@@ -27,8 +25,9 @@ The Android script installs the APK, turns on the accessibility service
 (uiautomator sees Flutter's text only then), makes it the home app, swipes
 down for the shade, searches and launches Settings with Enter, presses Home,
 checks the grid, menu, quick hide, settings and stats, double-taps to lock,
-checks the log, and leaves screenshots in `build/e2e-android/`. Extend both with
-each feature a PR adds. Anything that can only be checked on a real phone
+checks the log, and leaves screenshots in `build/e2e-android/`. Extend it with
+each feature a PR adds; the widget tests in `test/` cover the logic on the
+host with `FakeAppSource`. Anything that can only be checked on a real phone
 (GrapheneOS, split screen) is said plainly in the PR.
 
 Toolchain: Flutter from `.flutter-version`, JDK **17 or 21** (Gradle 8.14
@@ -38,7 +37,7 @@ rejects 25+).
 
 | Path | What |
 | --- | --- |
-| `lib/main.dart` | Picks the app source: Android, or a fake app list on Linux |
+| `lib/main.dart` | Starts the app with the Android app source |
 | `lib/services/app_source.dart` | `AppEntry`, the `AppSource` interface, its Android and fake implementations |
 | `lib/services/launcher_controller.dart` | App list and pairs, search results, launch counts, stats, the grid, settings, export and import, Home presses |
 | `lib/services/app_pairs.dart` | `AppPair`: a saved pair is an app of its own, keyed `pair:<first>\|<second>` |
@@ -64,9 +63,8 @@ Apps are identified everywhere by the key `package/activity#userSerial`.
 User serials survive reboots, user handles do not; later phases store launch
 counts and home slots under this key.
 
-The Linux build is the dev loop: `flutter run -d linux` shows the launcher
-with a fixed list of fake apps (`FakeAppSource.demo()`), and the widget tests
-use the same fake.
+The widget tests run the real screens against `FakeAppSource`, an in-memory
+app list, so most work needs no device.
 
 ## Android notes
 
@@ -174,10 +172,9 @@ vX.Y.Z; and git push; and git push --tags`.
 
 ## Screenshots
 
-The README screenshots in `docs/screenshots/` come from the Linux build at
-phone size, with the demo apps, drawn stand-in icons and a gradient in place
-of the wallpaper. Re-render them with `tool/readme_shots.sh` (needs
-`xvfb-run`) after a visible change. They hold no personal data.
+The README screenshots in `docs/screenshots/` came from the former Linux
+build, with demo apps and drawn stand-in icons, so they hold no personal data.
+Phase 4 replaces them with shots taken on the Android emulator by script.
 
 ## Icons
 

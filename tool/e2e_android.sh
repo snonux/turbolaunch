@@ -192,7 +192,15 @@ expect_focus "shade closed, home again" "$app"
 # 10. No crash anywhere.
 adb logcat -d >"$out/logcat.txt"
 if adb shell pidof "$app" >/dev/null; then pass "still running"; else fail "still running"; fi
-if grep -E "FATAL EXCEPTION|E/flutter|Unhandled Exception" "$out/logcat.txt"; then fail "no errors in the log"; else pass "no errors in the log"; fi
+# Crashes of other apps on the emulator are not ours; AndroidRuntime names the
+# crashed process on the line after FATAL EXCEPTION. Every crash is printed.
+grep -A12 "FATAL EXCEPTION" "$out/logcat.txt" || true
+if grep -A1 "FATAL EXCEPTION" "$out/logcat.txt" | grep -q "Process: $app" ||
+  grep -qE "E/flutter|E flutter|Unhandled Exception" "$out/logcat.txt"; then
+  fail "no TurboLaunch errors in the log"
+else
+  pass "no TurboLaunch errors in the log"
+fi
 
 # 11. Timings on a later cold start, with the app list and icons cached as on
 #     a phone that has used TurboLaunch before. Emulator numbers: compare runs,

@@ -158,6 +158,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final scheme = Theme.of(context).colorScheme;
     // Only empty space listens for double-taps, so taps on apps are never delayed.
     final lockOnDoubleTap = _c.settings.doubleTapLock ? _lock : null;
+    // Read here, above the Scaffold: the Scaffold takes the keyboard's inset
+    // out of the MediaQuery its body sees.
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
     return PopScope(
       // Back on the home screen clears the search instead of leaving.
       canPop: false,
@@ -185,6 +188,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onDoubleTap: lockOnDoubleTap,
                               )
                             : _HomeGrid(
+                                keyboardOpen: keyboardOpen,
                                 controller: _c,
                                 icons: widget.icons,
                                 onLongPress: _showMenu,
@@ -363,7 +367,15 @@ class _ClockLineState extends State<_ClockLine> {
 /// The home grid. Measures its own area and reports the automatic size to
 /// the controller, which places apps; cells never move once placed.
 class _HomeGrid extends StatelessWidget {
-  const _HomeGrid({required this.controller, required this.icons, required this.onLongPress, this.onDoubleTap});
+  const _HomeGrid({
+    required this.keyboardOpen,
+    required this.controller,
+    required this.icons,
+    required this.onLongPress,
+    this.onDoubleTap,
+  });
+
+  final bool keyboardOpen;
 
   final LauncherController controller;
   final IconCache icons;
@@ -376,7 +388,6 @@ class _HomeGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
-        final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
         final auto = autoGridSize(box.maxWidth, box.maxHeight, labelScale: controller.settings.labelScale);
         // The keyboard shrinks the area for a moment; that must not cut cells.
         if (!keyboardOpen) {
@@ -441,33 +452,42 @@ class _GridCell extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       onTap: onTap,
       onLongPress: onLongPress,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              AppIcon(app: app, cache: icons, size: 48),
-              if (app.otherProfile)
-                const Positioned(right: -4, bottom: -4, child: Icon(Icons.work, size: 16, color: Colors.white)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2),
-            child: Text(
-              app.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 12 * labelScale,
-                color: Colors.white,
-                shadows: const [Shadow(blurRadius: 4, color: Colors.black87)],
-              ),
+      // Scales down rather than overflowing while the keyboard squeezes the grid.
+      child: LayoutBuilder(
+        builder: (context, box) => FittedBox(
+          fit: BoxFit.scaleDown,
+          child: SizedBox(
+            width: box.maxWidth,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AppIcon(app: app, cache: icons, size: 48),
+                    if (app.otherProfile)
+                      const Positioned(right: -4, bottom: -4, child: Icon(Icons.work, size: 16, color: Colors.white)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: Text(
+                    app.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 12 * labelScale,
+                      color: Colors.white,
+                      shadows: const [Shadow(blurRadius: 4, color: Colors.black87)],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }

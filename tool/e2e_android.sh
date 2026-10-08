@@ -49,6 +49,7 @@ tap_on() {
   dump
   local xy; xy=$(centre "$1")
   if [ -z "$xy" ]; then fail "find '$1'"; return 1; fi
+  echo "  tap '$1' at $xy"
   adb shell input tap $xy
 }
 
@@ -79,18 +80,6 @@ if adb logcat -d | grep -q 'TurboLaunch cold start: [0-9]* ms'; then
 else
   fail "cold start logged"
 fi
-
-# 1b. A swipe down on the home grid pulls the notification shade; Back closes it.
-adb shell input swipe $((w / 2)) $((h * 3 / 10)) $((w / 2)) $((h * 7 / 10)) 150
-sleep 2; shot shade
-if adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedWindow' | grep -q NotificationShade; then
-  pass "swipe down opens notifications"
-else
-  fail "swipe down opens notifications (focus: $(focused | tr '\n' ' '))"
-fi
-adb shell input keyevent KEYCODE_BACK
-sleep 2
-expect_focus "shade closed, home again" "$app"
 
 # 2. Tapping the search box lists the device's apps.
 tap_on search && sleep 2
@@ -169,7 +158,7 @@ expect_ui "Back returns home" 'resource-id="search"'
 #    taps go in one shell so they land within the double-tap timeout.
 asleep() { adb shell dumpsys power | grep -q 'mWakefulness=\(Asleep\|Dozing\)'; }
 for _ in 1 2 3; do
-  adb shell "input tap $((w / 2)) $((h * 35 / 100)); input tap $((w / 2)) $((h * 35 / 100))"
+  adb shell "a=\$(date +%s%N); input tap $((w / 2)) $((h * 35 / 100)); b=\$(date +%s%N); input tap $((w / 2)) $((h * 35 / 100)); echo \"  taps \$(( (b - a) / 1000000 )) ms apart\""
   sleep 3
   asleep && break
 done
@@ -178,6 +167,19 @@ adb shell input keyevent KEYCODE_WAKEUP
 adb shell wm dismiss-keyguard
 sleep 3; shot unlocked
 expect_focus "home again after unlocking" "$app"
+
+# 9b. A swipe down on the home grid pulls the notification shade (the shade
+#     window becomes the one uiautomator dumps); then close it again.
+adb shell input swipe $((w / 2)) $((h * 3 / 10)) $((w / 2)) $((h * 7 / 10)) 150
+sleep 2; shot shade; dump
+if grep -q 'package="com.android.systemui"' "$out/ui.xml"; then
+  pass "swipe down opens notifications"
+else
+  fail "swipe down opens notifications ($(focused | tr '\n' ' '))"
+fi
+adb shell cmd statusbar collapse
+sleep 2
+expect_focus "shade closed, home again" "$app"
 
 # 10. No crash anywhere.
 adb logcat -d >"$out/logcat.txt"

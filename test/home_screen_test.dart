@@ -351,4 +351,27 @@ void main() {
     expect(find.byIcon(Icons.work_outline), findsOneWidget);
     expect(find.byType(ColorFiltered), findsOneWidget, reason: 'paused apps are drawn in grey');
   });
+
+  testWidgets('an app launched with the keyboard open gets a bottom-row cell', (tester) async {
+    await start(tester);
+    final full = tester.getSize(find.byKey(const Key('home-grid')));
+    await openSearch(tester);
+    // The keyboard takes most of the screen while typing.
+    tester.view.viewInsets = const FakeViewPadding(bottom: 1400);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.enterText(find.byKey(const Key('search')), 'maps');
+    await tester.pumpAndSettle();
+    await tester.testTextInput.receiveAction(TextInputAction.go);
+    await tester.pumpAndSettle();
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    expect(tester.getSize(find.byKey(const Key('home-grid'))), full);
+    final cell = tester.getRect(find.byKey(const ValueKey('cell-org.example.maps/org.example.maps.Main#0')));
+    final grid = tester.getRect(find.byKey(const Key('home-grid')));
+    expect(
+      cell.center.dy,
+      greaterThan(grid.bottom - grid.height * 0.15),
+      reason: 'bottom row, not a row of the squeezed grid',
+    );
+  });
 }

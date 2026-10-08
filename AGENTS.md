@@ -172,9 +172,20 @@ vX.Y.Z; and git push; and git push --tags`.
 
 ## Screenshots
 
-The README screenshots in `docs/screenshots/` came from the former Linux
-build, with demo apps and drawn stand-in icons, so they hold no personal data.
-Phase 4 replaces them with shots taken on the Android emulator by script.
+`tool/shots_android.sh` takes the screenshots and the recording in
+`docs/guide/images/` (and F-Droid's `phoneScreenshots/`) on the emulator,
+with its own apps only, so they hold no personal data. The Android e2e runs
+it at its end, into `build/shots-android/`. CI artifacts cannot be reached
+from the cloud container, so to refresh the shots from there, push a
+temporary `export SHOTS_TO_LOG=1` near the top of `tool/e2e_android.sh`: it prints each file base64-encoded
+between `=== SHOT name` and `=== END` lines at the tail of the job log.
+The PNGs go to `docs/guide/images/` and, as `1.png` to `5.png` (home,
+search, menu, settings, stats), to F-Droid's `phoneScreenshots/`. The GIF is made
+from `search.mp4`:
+
+```sh
+ffmpeg -ss 2.2 -i search.mp4 -vf "fps=10,scale=360:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" docs/guide/images/search.gif
+```
 
 ## Icons
 
@@ -199,10 +210,10 @@ From the plan, one PR per phase:
 2. **Daily driver** (done): fuzzy search, home grid filled by launch count (cells
    never move once placed), hide, long-press menu, wallpapers, light and dark,
    font sizes, app shortcuts in search, quick hide.
-3. **Profiles and polish** (this): work profile and multi-user, icon cache, settings
+3. **Profiles and polish** (done): work profile and multi-user, icon cache, settings
    export and import, stats screen, double-tap to lock, swipe for
    notifications, app pairs.
-4. **Release**: first tag through snonux/fdroid, README and usage guide with
+4. **Release** (this): first tag through snonux/fdroid, README and usage guide with
    screenshots and GIFs, fdroiddata merge request.
 5. **S3 sync**: Quicklog's S3 client and retry code, per-device files,
    merged launch counts and shared cells.

@@ -1,1 +1,1 @@
-First release: lists and launches every app, search box at the bottom, app pair test in settings.
+First release. Fuzzy search with app shortcuts, a home grid that fills itself with your most-launched apps and never moves an icon, quick hide, double-tap to lock, swipe down for notifications, app pairs in split screen, work profile apps, a stats screen, wallpapers, grid and font sizes, and export and import of everything as one file.

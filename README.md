@@ -7,14 +7,13 @@ Home, type two or three letters, hit Enter, and the app opens. No tracking,
 no Google Play Services; the only network use will be optional sync to your
 own S3 bucket.
 
-<p align="center">
-  <img src="docs/screenshots/home.png" width="270" alt="Home screen: clock and battery on top, a grid of the most-launched apps near the bottom, the search box below">
-  &nbsp;
-  <img src="docs/screenshots/search.png" width="270" alt="Typing &quot;te&quot; lists Termux, Notes, AntennaPod, LibreTube and app shortcuts, matched letters highlighted">
-</p>
+**[Read the guide](docs/guide/README.md)**: installing, then every
+feature with screenshots and a short recording.
 
-**Status: phase 3 of 5 (profiles and polish).** The F-Droid release and S3
-sync follow; see the roadmap in [AGENTS.md](AGENTS.md#roadmap).
+| | |
+|---|---|
+| ![Home screen: clock and battery on top, the most-launched apps near the bottom, the search box below](docs/guide/images/home.png) | ![Typing "clk" and Enter opens Clock](docs/guide/images/search.gif) |
+| The home screen | Type, Enter, done |
 
 ## Highlights
 
@@ -34,19 +33,20 @@ sync follow; see the roadmap in [AGENTS.md](AGENTS.md#roadmap).
 * Work profile apps included, with a badge (greyed while work apps are paused)
 * Export and import of everything as one JSON file, for a new phone
 
-## Try it
+## Install
 
-Build and install a debug APK, then pick TurboLaunch under Settings, Apps,
-Default apps, Home app (or tap "Set as home app" in its settings):
-
-```sh
-flutter build apk --release --split-per-abi
-adb install build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
-```
-
-The stock launcher stays installed, so you can always switch back.
+Add the [snonux F-Droid repository](https://github.com/snonux/fdroid) to
+F-Droid (on the phone, tap
+**[Add to F-Droid](https://fdroid.link/#https://snonux.github.io/fdroid/repo?fingerprint=04B05FB0565543E058372B867B3D3A699D9D668388CE670478EDD4116D736DF7)**)
+and install TurboLaunch, or take an APK from the
+[releases](https://github.com/snonux/turbolaunch/releases). Then press Home
+and pick TurboLaunch. Your old launcher stays installed, so you can always
+switch back. Details in [Installing](docs/guide/README.md#installing).
 
 ## More
 
+* [The guide](docs/guide/README.md): every feature, privacy, building it
+  yourself
 * [AGENTS.md](AGENTS.md): building, testing, releasing, conventions
+* [Publishing on F-Droid](docs/fdroid-submission.md)
 * Licence: [MIT](LICENSE)

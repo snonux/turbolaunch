@@ -3,10 +3,16 @@ import 'dart:typed_data';
 
 import 'package:launcher_platform/launcher_platform.dart';
 
-/// One launchable app. [key] is `package/activity#userSerial` and stays
-/// stable, so later phases use it for launch counts and home slots.
+import 'app_pairs.dart';
+
+/// One launchable app, or a saved app pair. [key] is
+/// `package/activity#userSerial` (or `pair:<first>|<second>`) and stays
+/// stable, so launch counts and home slots are stored under it.
 class AppEntry {
-  const AppEntry({required this.key, required this.label, this.otherProfile = false});
+  const AppEntry({required this.key, required this.label, this.otherProfile = false, this.paused = false})
+    : pair = null;
+
+  AppEntry.pair(AppPair this.pair) : key = pair.key, label = pair.name, otherProfile = false, paused = false;
 
   final String key;
   final String label;
@@ -14,14 +20,27 @@ class AppEntry {
   /// In a work profile or another profile than the launcher's own.
   final bool otherProfile;
 
-  String get packageName => key.substring(0, key.indexOf('/'));
+  /// Its profile is paused (work apps off); starting it asks to resume.
+  final bool paused;
+
+  /// Set for an app pair, which opens two apps in split screen.
+  final AppPair? pair;
+
+  bool get isPair => pair != null;
+
+  /// The Android package; empty for a pair.
+  String get packageName => isPair ? '' : key.substring(0, key.indexOf('/'));
 
   @override
   bool operator ==(Object other) =>
-      other is AppEntry && other.key == key && other.label == label && other.otherProfile == otherProfile;
+      other is AppEntry &&
+      other.key == key &&
+      other.label == label &&
+      other.otherProfile == otherProfile &&
+      other.paused == paused;
 
   @override
-  int get hashCode => Object.hash(key, label, otherProfile);
+  int get hashCode => Object.hash(key, label, otherProfile, paused);
 
   @override
   String toString() => 'AppEntry($label, $key)';
@@ -68,6 +87,18 @@ abstract class AppSource {
   /// Milliseconds from process start to now, or -1 where unknown.
   Future<int> startupMillis();
   Future<bool> splitServiceEnabled();
+
+  /// Locks the phone; false when the accessibility service is off.
+  Future<bool> lockScreen();
+
+  /// Pulls down the notification shade; false when Android refused.
+  Future<bool> expandNotifications();
+
+  /// Saves [content] where the user picks; the file's name, or null when cancelled.
+  Future<String?> saveTextFile(String name, String content);
+
+  /// The text of a file the user picks, or null when cancelled.
+  Future<String?> openTextFile();
   Future<void> openAccessibilitySettings();
   Future<void> openHomeSettings();
   Future<PairOutcome> launchPair(AppEntry first, AppEntry second);
@@ -99,7 +130,8 @@ class PlatformAppSource implements AppSource {
 
   @override
   Future<List<AppEntry>> listApps() async => [
-    for (final a in await _platform.listApps()) AppEntry(key: a.key, label: a.label, otherProfile: a.otherProfile),
+    for (final a in await _platform.listApps())
+      AppEntry(key: a.key, label: a.label, otherProfile: a.otherProfile, paused: a.paused),
   ];
 
   @override
@@ -116,6 +148,18 @@ class PlatformAppSource implements AppSource {
 
   @override
   Future<bool> splitServiceEnabled() => _platform.splitServiceEnabled();
+
+  @override
+  Future<bool> lockScreen() => _platform.lockScreen();
+
+  @override
+  Future<bool> expandNotifications() => _platform.expandNotifications();
+
+  @override
+  Future<String?> saveTextFile(String name, String content) => _platform.saveTextFile(name, content);
+
+  @override
+  Future<String?> openTextFile() => _platform.openTextFile();
 
   @override
   Future<void> openAccessibilitySettings() => _platform.openAccessibilitySettings();
@@ -191,6 +235,12 @@ class FakeAppSource implements AppSource {
   final uninstalled = <AppEntry>[];
   final wallpapers = <WallpaperTarget>[];
   final pairs = <(AppEntry, AppEntry)>[];
+  int locks = 0;
+  int shades = 0;
+
+  /// Files "saved" through [saveTextFile], by name; [openTextFile] returns [fileToOpen].
+  final savedFiles = <String, String>{};
+  String? fileToOpen;
   final _events = StreamController<AppSourceEvent>.broadcast();
   bool serviceEnabled = false;
 
@@ -224,6 +274,30 @@ class FakeAppSource implements AppSource {
 
   @override
   Future<bool> splitServiceEnabled() async => serviceEnabled;
+
+  @override
+  Future<bool> lockScreen() async {
+    if (!serviceEnabled) return false;
+    locks++;
+    return true;
+  }
+
+  @override
+  Future<bool> expandNotifications() async {
+    shades++;
+    return true;
+  }
+
+  @override
+  Future<String?> saveTextFile(String name, String content) async {
+    savedFiles[name] = content;
+    // The Linux dev loop opens what it last saved.
+    fileToOpen = content;
+    return name;
+  }
+
+  @override
+  Future<String?> openTextFile() async => fileToOpen;
 
   @override
   Future<void> openAccessibilitySettings() async {}

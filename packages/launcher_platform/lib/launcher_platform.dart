@@ -6,13 +6,16 @@ import 'package:flutter/services.dart';
 
 /// One launchable activity as the platform reports it.
 class PlatformApp {
-  const PlatformApp({required this.key, required this.label, required this.otherProfile});
+  const PlatformApp({required this.key, required this.label, required this.otherProfile, this.paused = false});
 
   final String key;
   final String label;
 
   /// True for apps in a work profile or another profile than the launcher's own.
   final bool otherProfile;
+
+  /// The app's profile is paused (work apps turned off); starting it asks to resume.
+  final bool paused;
 }
 
 /// One long-press shortcut of an app ("New note", "Navigate home").
@@ -49,6 +52,7 @@ class LauncherPlatform {
           key: m['key'] as String,
           label: m['label'] as String,
           otherProfile: m['otherProfile'] as bool? ?? false,
+          paused: m['paused'] as bool? ?? false,
         ),
     ];
   }
@@ -67,6 +71,20 @@ class LauncherPlatform {
 
   /// Whether the user enabled TurboLaunch's accessibility service.
   Future<bool> splitServiceEnabled() async => await _channel.invokeMethod<bool>('splitServiceEnabled') ?? false;
+
+  /// Locks the phone through the accessibility service; false when it is off.
+  Future<bool> lockScreen() async => await _channel.invokeMethod<bool>('lockScreen') ?? false;
+
+  /// Pulls down the notification shade; false when Android refused.
+  Future<bool> expandNotifications() async => await _channel.invokeMethod<bool>('expandNotifications') ?? false;
+
+  /// Saves [content] where the user picks, through the system file dialog.
+  /// Returns the file's name, or null when the user cancelled.
+  Future<String?> saveTextFile(String name, String content) =>
+      _channel.invokeMethod<String>('saveTextFile', {'name': name, 'content': content});
+
+  /// Reads a file the user picks. Returns its text, or null when cancelled.
+  Future<String?> openTextFile() => _channel.invokeMethod<String>('openTextFile');
 
   Future<void> openAccessibilitySettings() => _channel.invokeMethod('openAccessibilitySettings');
 

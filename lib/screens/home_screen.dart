@@ -92,8 +92,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 item('unhide', Icons.visibility_outlined, 'Unhide')
               else
                 item('hide', Icons.visibility_off_outlined, 'Hide'),
-              item('info', Icons.info_outline, 'App info'),
-              item('uninstall', Icons.delete_outline, 'Uninstall'),
+              if (app.isPair)
+                item('delete-pair', Icons.delete_outline, 'Delete pair')
+              else ...[
+                item('info', Icons.info_outline, 'App info'),
+                item('uninstall', Icons.delete_outline, 'Uninstall'),
+              ],
             ],
           ),
         );
@@ -112,7 +116,32 @@ class _HomeScreenState extends State<HomeScreen> {
         await _c.source.appInfo(app);
       case 'uninstall':
         await _c.source.uninstall(app);
+      case 'delete-pair':
+        _c.removePair(app.pair!);
     }
+  }
+
+  /// Double-tap on empty home space: lock the phone.
+  Future<void> _lock() async {
+    if (await _c.source.lockScreen() || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Double-tap to lock needs TurboLaunch actions turned on under Accessibility.'),
+        action: SnackBarAction(label: 'Open', onPressed: _c.source.openAccessibilitySettings),
+      ),
+    );
+  }
+
+  /// Swipe down on the home screen: the notification shade. Fails silently.
+  Widget _gestures(Widget child) {
+    if (!_c.settings.swipeNotifications) return child;
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onVerticalDragEnd: (d) {
+        if ((d.primaryVelocity ?? 0) > 300) _c.source.expandNotifications();
+      },
+      child: child,
+    );
   }
 
   void _openSettings() {
@@ -127,6 +156,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // Only empty space listens for double-taps, so taps on apps are never delayed.
+    final lockOnDoubleTap = _c.settings.doubleTapLock ? _lock : null;
     return PopScope(
       // Back on the home screen clears the search instead of leaving.
       canPop: false,
@@ -145,13 +176,21 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? const SizedBox.shrink()
                     : _searching
                     ? _results(scheme)
-                    : _c.quickHide
-                    ? GestureDetector(
-                        key: const Key('quick-hidden'),
-                        behavior: HitTestBehavior.opaque,
-                        onLongPress: _c.toggleQuickHide,
-                      )
-                    : _HomeGrid(controller: _c, icons: widget.icons, onLongPress: _showMenu),
+                    : _gestures(
+                        _c.quickHide
+                            ? GestureDetector(
+                                key: const Key('quick-hidden'),
+                                behavior: HitTestBehavior.opaque,
+                                onLongPress: _c.toggleQuickHide,
+                                onDoubleTap: lockOnDoubleTap,
+                              )
+                            : _HomeGrid(
+                                controller: _c,
+                                icons: widget.icons,
+                                onLongPress: _showMenu,
+                                onDoubleTap: lockOnDoubleTap,
+                              ),
+                      ),
               ),
               _searchRow(scheme),
             ],
@@ -324,11 +363,14 @@ class _ClockLineState extends State<_ClockLine> {
 /// The home grid. Measures its own area and reports the automatic size to
 /// the controller, which places apps; cells never move once placed.
 class _HomeGrid extends StatelessWidget {
-  const _HomeGrid({required this.controller, required this.icons, required this.onLongPress});
+  const _HomeGrid({required this.controller, required this.icons, required this.onLongPress, this.onDoubleTap});
 
   final LauncherController controller;
   final IconCache icons;
   final void Function(AppEntry) onLongPress;
+
+  /// For empty cells only.
+  final VoidCallback? onDoubleTap;
 
   @override
   Widget build(BuildContext context) {
@@ -353,7 +395,12 @@ class _HomeGrid extends StatelessWidget {
                     for (var c = 0; c < cols; c++)
                       Expanded(
                         child: grid[Cell(r, c)] == null
-                            ? const SizedBox.expand()
+                            ? GestureDetector(
+                                key: ValueKey('empty-$r-$c'),
+                                behavior: HitTestBehavior.opaque,
+                                onDoubleTap: onDoubleTap,
+                                child: const SizedBox.expand(),
+                              )
                             : _GridCell(
                                 app: grid[Cell(r, c)]!,
                                 icons: icons,
@@ -465,7 +512,11 @@ class _ResultTile extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       subtitle: result.shortcut != null ? Text(owner.label) : null,
-      trailing: owner.otherProfile ? const Icon(Icons.work_outline, size: 18) : null,
+      trailing: owner.isPair
+          ? const Icon(Icons.vertical_split_outlined, size: 18)
+          : owner.otherProfile
+          ? const Icon(Icons.work_outline, size: 18)
+          : null,
       onTap: onTap,
       onLongPress: onLongPress,
     );

@@ -5,11 +5,13 @@ import '../services/app_source.dart';
 import '../services/app_version.dart';
 import '../services/launcher_controller.dart';
 import '../services/launcher_store.dart';
+import '../services/settings_backup.dart';
 import '../services/startup_timer.dart';
 import '../widgets/app_icon.dart';
+import 'stats_screen.dart';
 
-/// Settings: the home app, cold start, wallpapers, grid size, search, font
-/// sizes, hidden apps, the app-pair test and the version.
+/// Settings: the home app, cold start, stats, wallpapers, grid size, search,
+/// gestures, font sizes, app pairs, hidden apps, export and import, and the version.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.controller, required this.icons});
 
@@ -26,6 +28,8 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   bool? _serviceEnabled;
   String? _pairResult;
   String? _wallpaperResult;
+  String? _dataResult;
+  final _pairName = TextEditingController();
 
   AppSource get _source => widget.controller.source;
 
@@ -52,8 +56,58 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     setState(() => _wallpaperResult = ok ? 'Wallpaper set.' : 'Could not set the wallpaper.');
   }
 
+  Future<void> _export() async {
+    String message;
+    try {
+      final name = await widget.controller.exportSettings();
+      if (name == null) return;
+      message = 'Saved to $name.';
+    } catch (e) {
+      message = 'Could not save: $e';
+    }
+    if (mounted) setState(() => _dataResult = message);
+  }
+
+  Future<void> _import() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Import settings?'),
+        content: const Text('The file replaces your settings, hidden apps, app pairs, launch counts and home grid.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            key: const Key('confirm-import'),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Import'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    String message;
+    try {
+      if (!await widget.controller.importSettings()) return;
+      message = 'Settings imported.';
+    } on SettingsImportException catch (e) {
+      message = e.message;
+    } catch (e) {
+      message = 'Could not read the file: $e';
+    }
+    if (mounted) setState(() => _dataResult = message);
+  }
+
+  void _savePair() {
+    final first = _first, second = _second;
+    if (first == null || second == null || first == second) return;
+    final pair = widget.controller.addPair(first, second, name: _pairName.text);
+    _pairName.clear();
+    setState(() => _pairResult = 'Saved "${pair.name}". It is in search now and earns a home cell like any app.');
+  }
+
   @override
   void dispose() {
+    _pairName.dispose();
     widget.controller.removeListener(_rebuild);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -86,7 +140,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
 
   @override
   Widget build(BuildContext context) {
-    final apps = widget.controller.apps;
+    final apps = widget.controller.installedApps;
     final text = Theme.of(context).textTheme;
     final s = widget.controller.settings;
     return Scaffold(
@@ -107,6 +161,17 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               leading: const Icon(Icons.timer_outlined),
               title: const Text('Cold start'),
               subtitle: Text(ms == null || ms < 0 ? 'Not measured' : '$ms ms from process start to first frame'),
+            ),
+          ),
+          ListTile(
+            key: const Key('open-stats'),
+            leading: const Icon(Icons.bar_chart),
+            title: const Text('Launch stats'),
+            subtitle: const Text('Launch counts and home cells per app'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => StatsScreen(controller: widget.controller, icons: widget.icons),
+              ),
             ),
           ),
           const Divider(),
@@ -164,6 +229,39 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             onChanged: (v) => _update(s.copyWith(iconsInResults: v)),
           ),
           const Divider(),
+          _header('Gestures', text),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              'Locking, and opening app pairs side by side, need the opt-in TurboLaunch actions '
+              'accessibility service. It only performs those actions and reads nothing on screen.',
+            ),
+          ),
+          ListTile(
+            key: const Key('split-service'),
+            leading: Icon(_serviceEnabled == true ? Icons.check_circle_outline : Icons.accessibility_new),
+            title: const Text('Accessibility service'),
+            subtitle: Text(switch (_serviceEnabled) {
+              null => 'Checking',
+              true => 'On',
+              false => 'Off: tap to open Accessibility settings',
+            }),
+            onTap: _source.openAccessibilitySettings,
+          ),
+          SwitchListTile(
+            key: const Key('double-tap-lock'),
+            title: const Text('Double-tap to lock'),
+            subtitle: const Text('On empty home space'),
+            value: s.doubleTapLock,
+            onChanged: (v) => _update(s.copyWith(doubleTapLock: v)),
+          ),
+          SwitchListTile(
+            key: const Key('swipe-notifications'),
+            title: const Text('Swipe down for notifications'),
+            value: s.swipeNotifications,
+            onChanged: (v) => _update(s.copyWith(swipeNotifications: v)),
+          ),
+          const Divider(),
           _header('Font sizes', text),
           _ScaleTile(
             key: const Key('scale-labels'),
@@ -198,28 +296,29 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
               ),
           ],
           const Divider(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: Text('App pair test', style: text.titleMedium),
-          ),
+          _header('App pairs', text),
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 4, 16, 8),
+            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(
-              'Opens two apps side by side. This needs the opt-in TurboLaunch actions '
-              'accessibility service, which does nothing but switch to split screen.',
+              'A pair opens two apps side by side. It shows up in search and earns a home cell like any app.',
             ),
           ),
-          ListTile(
-            key: const Key('split-service'),
-            leading: Icon(_serviceEnabled == true ? Icons.check_circle_outline : Icons.accessibility_new),
-            title: const Text('Accessibility service'),
-            subtitle: Text(switch (_serviceEnabled) {
-              null => 'Checking',
-              true => 'On',
-              false => 'Off: tap to open Accessibility settings',
-            }),
-            onTap: _source.openAccessibilitySettings,
-          ),
+          for (final p in widget.controller.pairs)
+            ListTile(
+              key: Key('pair-${p.key}'),
+              leading: const Icon(Icons.vertical_split_outlined),
+              title: Text(p.name),
+              subtitle: Text(
+                '${widget.controller.appByKey(p.first)?.label ?? 'Not installed'} above '
+                '${widget.controller.appByKey(p.second)?.label ?? 'not installed'}',
+              ),
+              trailing: IconButton(
+                key: Key('delete-pair-${p.key}'),
+                tooltip: 'Delete pair',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: () => widget.controller.removePair(p),
+              ),
+            ),
           _AppPicker(
             key: const Key('pair-first'),
             label: 'Top app',
@@ -237,16 +336,60 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             onChanged: (a) => setState(() => _second = a),
           ),
           Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: TextField(
+              key: const Key('pair-name'),
+              controller: _pairName,
+              decoration: InputDecoration(
+                labelText: 'Name',
+                hintText: _first != null && _second != null ? '${_first!.label} + ${_second!.label}' : null,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ),
+          Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: FilledButton.icon(
-              key: const Key('open-pair'),
-              onPressed: _first != null && _second != null && _first != _second ? _openPair : null,
-              icon: const Icon(Icons.vertical_split_outlined),
-              label: const Text('Open pair'),
+            child: Wrap(
+              spacing: 8,
+              children: [
+                FilledButton.icon(
+                  key: const Key('save-pair'),
+                  onPressed: _first != null && _second != null && _first != _second ? _savePair : null,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Save pair'),
+                ),
+                OutlinedButton.icon(
+                  key: const Key('open-pair'),
+                  onPressed: _first != null && _second != null && _first != _second ? _openPair : null,
+                  icon: const Icon(Icons.vertical_split_outlined),
+                  label: const Text('Try it'),
+                ),
+              ],
             ),
           ),
           if (_pairResult != null)
             Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text(_pairResult!)),
+          const Divider(),
+          _header('Your data', text),
+          ListTile(
+            key: const Key('export-settings'),
+            leading: const Icon(Icons.upload_file_outlined),
+            title: const Text('Export settings'),
+            subtitle: const Text('Settings, pairs, hidden apps, launch counts and the grid, as one JSON file'),
+            onTap: _export,
+          ),
+          ListTile(
+            key: const Key('import-settings'),
+            leading: const Icon(Icons.download_outlined),
+            title: const Text('Import settings'),
+            subtitle: const Text('From an exported file, for example on a new phone'),
+            onTap: _import,
+          ),
+          if (_dataResult != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(72, 0, 16, 8),
+              child: Text(_dataResult!, key: const Key('data-result')),
+            ),
           const Divider(),
           FutureBuilder<String>(
             future: loadAppVersion(DefaultAssetBundle.of(context)),

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'app_pairs.dart';
 import 'home_grid.dart';
 
 /// User settings, all with defaults that work without any setup.
@@ -15,6 +16,8 @@ class LauncherSettings {
     this.keyboardOnHome = false,
     this.showClock = true,
     this.iconsInResults = true,
+    this.doubleTapLock = true,
+    this.swipeNotifications = true,
   });
 
   /// 0 means automatic, from the screen size.
@@ -31,6 +34,12 @@ class LauncherSettings {
   final bool showClock;
   final bool iconsInResults;
 
+  /// Double-tap on empty home space locks the phone (needs the accessibility service).
+  final bool doubleTapLock;
+
+  /// Swipe down on the home screen pulls the notification shade.
+  final bool swipeNotifications;
+
   static const minScale = 0.8;
   static const maxScale = 1.6;
 
@@ -43,6 +52,8 @@ class LauncherSettings {
     bool? keyboardOnHome,
     bool? showClock,
     bool? iconsInResults,
+    bool? doubleTapLock,
+    bool? swipeNotifications,
   }) => LauncherSettings(
     gridRows: gridRows ?? this.gridRows,
     gridCols: gridCols ?? this.gridCols,
@@ -52,6 +63,8 @@ class LauncherSettings {
     keyboardOnHome: keyboardOnHome ?? this.keyboardOnHome,
     showClock: showClock ?? this.showClock,
     iconsInResults: iconsInResults ?? this.iconsInResults,
+    doubleTapLock: doubleTapLock ?? this.doubleTapLock,
+    swipeNotifications: swipeNotifications ?? this.swipeNotifications,
   );
 
   Map<String, Object> toJson() => {
@@ -63,6 +76,8 @@ class LauncherSettings {
     'keyboardOnHome': keyboardOnHome,
     'showClock': showClock,
     'iconsInResults': iconsInResults,
+    'doubleTapLock': doubleTapLock,
+    'swipeNotifications': swipeNotifications,
   };
 
   factory LauncherSettings.fromJson(Map<String, Object?> j) {
@@ -77,13 +92,15 @@ class LauncherSettings {
       keyboardOnHome: j['keyboardOnHome'] as bool? ?? false,
       showClock: j['showClock'] as bool? ?? true,
       iconsInResults: j['iconsInResults'] as bool? ?? true,
+      doubleTapLock: j['doubleTapLock'] as bool? ?? true,
+      swipeNotifications: j['swipeNotifications'] as bool? ?? true,
     );
   }
 }
 
 /// Everything TurboLaunch remembers, on the device in SharedPreferences:
-/// launch counts, home cells, apps removed from the grid, hidden apps and
-/// the settings. Later phases sync the first three through S3.
+/// launch counts, home cells, apps removed from the grid, hidden apps, app
+/// pairs and the settings. Later phases sync some of it through S3.
 class LauncherStore {
   LauncherStore(this._prefs);
 
@@ -97,6 +114,7 @@ class LauncherStore {
   static const _hidden = 'hiddenApps';
   static const _settings = 'settings';
   static const _quickHide = 'quickHide';
+  static const _pairs = 'appPairs';
 
   Map<String, Object?> _json(String key) {
     final raw = _prefs.getString(key);
@@ -132,6 +150,19 @@ class LauncherStore {
 
   LauncherSettings get settings => LauncherSettings.fromJson(_json(_settings));
   Future<void> setSettings(LauncherSettings v) => _prefs.setString(_settings, jsonEncode(v.toJson()));
+
+  List<AppPair> get pairs {
+    final raw = _prefs.getString(_pairs);
+    if (raw == null) return const [];
+    try {
+      final v = jsonDecode(raw);
+      return v is List ? [for (final p in v.map(AppPair.fromJson)) ?p] : const [];
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  Future<void> setPairs(List<AppPair> v) => _prefs.setString(_pairs, jsonEncode([for (final p in v) p.toJson()]));
 
   bool get quickHide => _prefs.getBool(_quickHide) ?? false;
   Future<void> setQuickHide(bool v) => _prefs.setBool(_quickHide, v);

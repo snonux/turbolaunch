@@ -4,8 +4,10 @@
 # search box lists the device's apps, that a fuzzy search and Enter launch the
 # top match, that Home returns with the search cleared and the launched app on
 # the home grid, that the long-press menu and quick hide work, that cold start
-# is logged, and that settings sees the accessibility service once it is on. Screenshots,
-# UI dumps and the log go to build/e2e-android/.
+# is logged, that a swipe down opens the notification shade, that settings sees
+# the accessibility service and shows the launch stats, and that a double-tap on
+# empty home space locks the phone. Screenshots, UI dumps and the log go to
+# build/e2e-android/.
 #
 #   tool/e2e_android.sh build/app/outputs/flutter-apk/app-x86_64-release.apk
 set -euo pipefail
@@ -65,6 +67,7 @@ adb shell settings put secure accessibility_enabled 1
 adb shell cmd package set-home-activity "$app/.MainActivity"
 adb shell input keyevent KEYCODE_HOME
 sleep 8
+read -r w h < <(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | tr x ' ')
 
 # 1. TurboLaunch is the home screen: clock line, search box, empty grid.
 dump; shot home
@@ -76,6 +79,18 @@ if adb logcat -d | grep -q 'TurboLaunch cold start: [0-9]* ms'; then
 else
   fail "cold start logged"
 fi
+
+# 1b. A swipe down on the home grid pulls the notification shade; Back closes it.
+adb shell input swipe $((w / 2)) $((h * 3 / 10)) $((w / 2)) $((h * 7 / 10)) 150
+sleep 2; shot shade
+if adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedWindow' | grep -q NotificationShade; then
+  pass "swipe down opens notifications"
+else
+  fail "swipe down opens notifications (focus: $(focused | tr '\n' ' '))"
+fi
+adb shell input keyevent KEYCODE_BACK
+sleep 2
+expect_focus "shade closed, home again" "$app"
 
 # 2. Tapping the search box lists the device's apps.
 tap_on search && sleep 2
@@ -132,8 +147,13 @@ tap_on "TurboLaunch settings" && sleep 3
 dump; shot settings
 expect_ui "settings open" 'Set as home app'
 expect_ui "cold start shown" 'ms from process start'
-# The app pair section is below the fold; uiautomator only dumps what shows.
-read -r w h < <(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | tr x ' ')
+# Launch stats: Settings was launched twice, by Enter and from its cell.
+tap_on "Launch stats" && sleep 2
+dump; shot stats
+expect_ui "stats count the launches" '2 launches on this phone'
+adb shell input keyevent KEYCODE_BACK
+sleep 2; dump
+# The gestures section is below the fold; uiautomator only dumps what shows.
 for _ in 1 2 3 4 5 6; do
   grep -q 'Accessibility service' "$out/ui.xml" && break
   adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300; sleep 1; dump
@@ -145,7 +165,21 @@ adb shell input keyevent KEYCODE_BACK
 sleep 2; dump
 expect_ui "Back returns home" 'resource-id="search"'
 
-# 9. No crash anywhere.
+# 9. Double-tap on empty home space locks the phone through the service. Both
+#    taps go in one shell so they land within the double-tap timeout.
+asleep() { adb shell dumpsys power | grep -q 'mWakefulness=\(Asleep\|Dozing\)'; }
+for _ in 1 2 3; do
+  adb shell "input tap $((w / 2)) $((h * 35 / 100)); input tap $((w / 2)) $((h * 35 / 100))"
+  sleep 3
+  asleep && break
+done
+if asleep; then pass "double-tap locks the phone"; else fail "double-tap locks the phone"; fi
+adb shell input keyevent KEYCODE_WAKEUP
+adb shell wm dismiss-keyguard
+sleep 3; shot unlocked
+expect_focus "home again after unlocking" "$app"
+
+# 10. No crash anywhere.
 adb logcat -d >"$out/logcat.txt"
 if adb shell pidof "$app" >/dev/null; then pass "still running"; else fail "still running"; fi
 if grep -E "FATAL EXCEPTION|E/flutter|Unhandled Exception" "$out/logcat.txt"; then fail "no errors in the log"; else pass "no errors in the log"; fi

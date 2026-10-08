@@ -155,14 +155,16 @@ sleep 2; dump
 expect_ui "Back returns home" 'resource-id="search"'
 
 # 9. Double-tap on empty home space locks the phone through the service. Both
-#    taps go in one shell so they land within the double-tap timeout.
+#    taps go in one shell so they land within the 300 ms double-tap timeout,
+#    with a pause between them: Flutter drops a second tap that comes less
+#    than 40 ms after the first (kDoubleTapMinTime) as touch-screen jitter.
 asleep() { adb shell dumpsys power | grep -q 'mWakefulness=\(Asleep\|Dozing\)'; }
 for _ in 1 2 3; do
-  adb shell "a=\$(date +%s%N); input tap $((w / 2)) $((h * 35 / 100)); b=\$(date +%s%N); input tap $((w / 2)) $((h * 35 / 100)); echo \"  taps \$(( (b - a) / 1000000 )) ms apart\""
+  adb shell "a=\$(date +%s%N); input tap $((w / 2)) $((h * 35 / 100)); sleep 0.1; b=\$(date +%s%N); input tap $((w / 2)) $((h * 35 / 100)); echo \"  taps \$(( (b - a) / 1000000 )) ms apart\""
   sleep 3
   asleep && break
 done
-if asleep; then pass "double-tap locks the phone"; else fail "double-tap locks the phone"; fi
+if asleep; then pass "double-tap locks the phone"; else fail "double-tap locks the phone"; adb logcat -d | grep 'TurboLaunch' | tail -5; fi
 adb shell input keyevent KEYCODE_WAKEUP
 adb shell wm dismiss-keyguard
 sleep 3; shot unlocked
@@ -176,6 +178,7 @@ if grep -q 'package="com.android.systemui"' "$out/ui.xml"; then
   pass "swipe down opens notifications"
 else
   fail "swipe down opens notifications ($(focused | tr '\n' ' '))"
+  adb logcat -d | grep 'TurboLaunch' | tail -5
 fi
 adb shell cmd statusbar collapse
 sleep 2

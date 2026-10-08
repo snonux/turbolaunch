@@ -27,6 +27,7 @@ import android.provider.DocumentsContract
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.provider.Settings
+import android.util.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -342,7 +343,9 @@ class LauncherPlatformPlugin :
     private fun lockScreen(): Boolean {
         val service = TurboLaunchAccessibilityService.instance() ?: return false
         if (Build.VERSION.SDK_INT < 28) return false
-        return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)
+        return service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN).also {
+            Log.i(TAG, "lock screen: $it")
+        }
     }
 
     /**
@@ -354,13 +357,18 @@ class LauncherPlatformPlugin :
     @Suppress("WrongConstant")
     private fun expandNotifications(): Boolean {
         TurboLaunchAccessibilityService.instance()?.let {
-            if (it.performGlobalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)) return true
+            if (it.performGlobalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)) {
+                Log.i(TAG, "notifications opened through the accessibility service")
+                return true
+            }
         }
         return try {
             val statusBar = context.getSystemService("statusbar") ?: return false
             statusBar.javaClass.getMethod("expandNotificationsPanel").invoke(statusBar)
+            Log.i(TAG, "notifications opened through the status bar")
             true
         } catch (e: Exception) {
+            Log.i(TAG, "notifications could not be opened: $e")
             false
         }
     }
@@ -553,6 +561,7 @@ class LauncherPlatformPlugin :
     }
 
     private companion object {
+        const val TAG = "TurboLaunch"
         // Time for the window manager to settle between the pair's steps; tuned on device.
         const val PAIR_STEP_MILLIS = 600L
         const val WALLPAPER_REQUEST = 0x7a11

@@ -38,6 +38,7 @@ import io.flutter.plugin.common.PluginRegistry
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -64,7 +65,14 @@ class LauncherPlatformPlugin :
     private val main = Handler(Looper.getMainLooper())
     private val worker: ExecutorService = Executors.newFixedThreadPool(2)
 
-    private lateinit var iconCache: IconDiskCache
+    // Opened on the first icon request, off the main thread.
+    private val iconCache by lazy {
+        IconDiskCache(File(context.cacheDir, "icons")).also { it.resetIfChanged(Build.FINGERPRINT) }
+    }
+
+    // The activities the last listApps found, by key, so an icon request
+    // needs no binder call to find its app again.
+    private val listed = ConcurrentHashMap<String, LauncherActivityInfo>()
 
     // The wallpaper pick in flight: which screens to set, and who to answer.
     private var wallpaperFlags = 0
@@ -77,32 +85,31 @@ class LauncherPlatformPlugin :
     // A work profile paused, resumed, added or removed changes the app list.
     private val profileReceiver =
         object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) = emit("packages")
+            override fun onReceive(context: Context, intent: Intent) = packagesChanged()
         }
 
     private val packageCallback =
         object : LauncherApps.Callback() {
-            override fun onPackageRemoved(packageName: String, user: UserHandle) = emit("packages")
+            override fun onPackageRemoved(packageName: String, user: UserHandle) = packagesChanged()
 
-            override fun onPackageAdded(packageName: String, user: UserHandle) = emit("packages")
+            override fun onPackageAdded(packageName: String, user: UserHandle) = packagesChanged()
 
-            override fun onPackageChanged(packageName: String, user: UserHandle) = emit("packages")
+            override fun onPackageChanged(packageName: String, user: UserHandle) = packagesChanged()
 
             override fun onPackagesAvailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) =
-                emit("packages")
+                packagesChanged()
 
             override fun onPackagesUnavailable(
                 packageNames: Array<out String>,
                 user: UserHandle,
                 replacing: Boolean,
-            ) = emit("packages")
+            ) = packagesChanged()
         }
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         context = binding.applicationContext
         launcherApps = context.getSystemService(LauncherApps::class.java)
         userManager = context.getSystemService(UserManager::class.java)
-        iconCache = IconDiskCache(File(context.cacheDir, "icons"))
         channel = MethodChannel(binding.binaryMessenger, "launcher_platform").also { it.setMethodCallHandler(this) }
         eventChannel = EventChannel(binding.binaryMessenger, "launcher_platform/events").also { it.setStreamHandler(this) }
     }
@@ -167,6 +174,12 @@ class LauncherPlatformPlugin :
         events = null
     }
 
+    // The remembered activities may be stale now; Dart lists the apps again.
+    private fun packagesChanged() {
+        listed.clear()
+        emit("packages")
+    }
+
     private fun emit(event: String) {
         main.post { events?.success(event) }
     }
@@ -225,37 +238,39 @@ class LauncherPlatformPlugin :
 
     private fun listApps(): List<Map<String, Any>> {
         val own = Process.myUserHandle()
-        return launcherApps.profiles.flatMap { user ->
+        val found = HashMap<String, LauncherActivityInfo>()
+        val apps = launcherApps.profiles.flatMap { user ->
             val serial = userManager.getSerialNumberForUser(user)
             // A paused work profile still lists its apps; starting one asks to resume the profile.
             val paused = user != own && userManager.isQuietModeEnabled(user)
             launcherApps.getActivityList(null, user)
                 .filter { it.applicationInfo.packageName != context.packageName }
                 .map { info ->
+                    val key = AppKey(info.applicationInfo.packageName, info.name, serial).toString()
+                    found[key] = info
                     mapOf(
-                        "key" to AppKey(info.applicationInfo.packageName, info.name, serial).toString(),
+                        "key" to key,
                         "label" to info.label.toString(),
                         "otherProfile" to (user != own),
                         "paused" to paused,
                     )
                 }
         }
+        listed.keys.retainAll(found.keys)
+        listed.putAll(found)
+        return apps
     }
 
     private fun resolve(key: AppKey?): LauncherActivityInfo? {
         if (key == null) return null
+        listed[key.toString()]?.let { return it }
         val user = userManager.getUserForSerialNumber(key.userSerial) ?: return null
         return launcherApps.getActivityList(key.packageName, user).firstOrNull { it.name == key.activity }
     }
 
     private fun icon(key: AppKey?, size: Int): ByteArray? {
         val info = resolve(key) ?: return null
-        val updated =
-            try {
-                context.packageManager.getPackageInfo(info.applicationInfo.packageName, 0).lastUpdateTime
-            } catch (e: Exception) {
-                0L
-            }
+        val updated = updateStamp(info)
         iconCache.read(key!!, size, updated)?.let { return it }
         val drawable = info.getBadgedIcon(0)
         val out = ByteArrayOutputStream()
@@ -267,6 +282,21 @@ class LauncherPlatformPlugin :
             // A full disk only costs the next start some time.
         }
         return png
+    }
+
+    /**
+     * Changes when the app is updated: an update installs a new APK file. Read
+     * from the file system, so no binder call; a system update, which can keep
+     * the file time, empties the whole icon cache instead.
+     */
+    private fun updateStamp(info: LauncherActivityInfo): Long {
+        val time = File(info.applicationInfo.sourceDir ?: "").lastModified()
+        if (time > 0) return time
+        return try {
+            context.packageManager.getPackageInfo(info.applicationInfo.packageName, 0).lastUpdateTime
+        } catch (e: Exception) {
+            0L
+        }
     }
 
     private fun drawableToBitmap(drawable: Drawable, size: Int): Bitmap {

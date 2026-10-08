@@ -40,4 +40,15 @@ class IconDiskCacheTest {
             IconDiskCache.fileName(AppKey("a", "b/c", 0), 1, 1),
         )
     }
+
+    @Test
+    fun aNewSystemBuildEmptiesTheCache() {
+        val cache = IconDiskCache(Files.createTempDirectory("icons").toFile())
+        cache.resetIfChanged("build-1")
+        cache.write(maps, 144, 1, byteArrayOf(1))
+        cache.resetIfChanged("build-1")
+        assertArrayEquals(byteArrayOf(1), cache.read(maps, 144, 1))
+        cache.resetIfChanged("build-2")
+        assertNull(cache.read(maps, 144, 1))
+    }
 }

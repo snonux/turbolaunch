@@ -41,13 +41,20 @@ class LauncherController extends ChangeNotifier {
   }
 
   void _load() {
+    _pairs = store.pairs;
+    // The app list from the last run, so a cold start shows the home grid at
+    // once; [refresh] replaces it with the device's current list.
+    final snapshot = _loaded ? const <AppEntry>[] : store.appSnapshot;
+    if (snapshot.isNotEmpty) {
+      _setInstalled(snapshot);
+      _loaded = true;
+    }
     _counts = store.counts;
     _slots = store.slots;
     _excluded = store.excluded;
     _hidden = store.hidden;
     _settings = store.settings;
     _quickHide = store.quickHide;
-    _pairs = store.pairs;
   }
 
   final AppSource source;
@@ -61,6 +68,13 @@ class LauncherController extends ChangeNotifier {
   List<AppEntry> _apps = const [];
   late List<AppPair> _pairs;
   List<ShortcutEntry> _shortcuts = const [];
+
+  /// The app each shortcut belongs to, by package and user serial.
+  Map<(String, int), AppEntry> _owners = const {};
+
+  /// Labels folded for search once, not on every keystroke.
+  final _folded = <String, String>{};
+  String _fold(String label) => _folded.putIfAbsent(label, () => foldForSearch(label));
   late Map<String, int> _counts;
   late Map<Cell, String> _slots;
   late Set<String> _excluded;
@@ -116,14 +130,15 @@ class LauncherController extends ChangeNotifier {
     final folded = foldForSearch(q);
     final scored = <(int, int, SearchResult)>[];
     for (final a in _apps) {
-      if (_hidden.contains(a.key) && foldForSearch(a.label) != folded) continue;
-      final m = fuzzyMatch(q, a.label);
+      final label = _fold(a.label);
+      if (_hidden.contains(a.key) && label != folded) continue;
+      final m = fuzzyMatch(q, a.label, foldedQuery: folded, foldedText: label);
       if (m != null) scored.add((m.score, _counts[a.key] ?? 0, SearchResult.app(a, positions: m.positions)));
     }
     for (final s in _shortcuts) {
-      final owner = _apps.where(s.belongsTo).firstOrNull;
+      final owner = _owners[(s.packageName, s.userSerial)];
       if (owner == null || _hidden.contains(owner.key)) continue;
-      final m = fuzzyMatch(q, s.label);
+      final m = fuzzyMatch(q, s.label, foldedQuery: folded, foldedText: _fold(s.label));
       // A shortcut ranks a little below an app with the same score.
       if (m == null) continue;
       scored.add((m.score - 1, _counts[owner.key] ?? 0, SearchResult.shortcut(s, owner, positions: m.positions)));
@@ -138,16 +153,29 @@ class LauncherController extends ChangeNotifier {
 
   Future<void> refresh() async {
     final apps = await source.listApps();
-    _installed = List.unmodifiable(apps..sort(_byLabel));
-    _mergePairs();
+    _setInstalled(apps);
+    store.setAppSnapshot(_installed);
+    _loaded = true;
+    _place();
+    notifyListeners();
+    // Shortcuts only matter once someone types, so the apps do not wait for them.
     try {
       _shortcuts = List.unmodifiable(await source.shortcuts());
     } catch (_) {
       _shortcuts = const [];
     }
-    _loaded = true;
-    _place();
     notifyListeners();
+  }
+
+  void _setInstalled(List<AppEntry> apps) {
+    _installed = List.unmodifiable(List<AppEntry>.of(apps)..sort(_byLabel));
+    _folded.clear();
+    _owners = {};
+    for (final a in _installed) {
+      final serial = int.tryParse(a.key.substring(a.key.lastIndexOf('#') + 1));
+      if (serial != null) _owners.putIfAbsent((a.packageName, serial), () => a);
+    }
+    _mergePairs();
   }
 
   static int _byLabel(AppEntry a, AppEntry b) {
@@ -184,11 +212,15 @@ class LauncherController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// The grid size for a screen with room for [autoRows] by [autoCols]: the
+  /// settings' overrides win.
+  (int, int) gridSizeFor(int autoRows, int autoCols) =>
+      (_settings.gridRows > 0 ? _settings.gridRows : autoRows, _settings.gridCols > 0 ? _settings.gridCols : autoCols);
+
   /// Tells the controller how many cells the screen has room for. The
   /// settings' overrides win over [autoRows] and [autoCols].
   void setAutoGridSize(int autoRows, int autoCols) {
-    final rows = _settings.gridRows > 0 ? _settings.gridRows : autoRows;
-    final cols = _settings.gridCols > 0 ? _settings.gridCols : autoCols;
+    final (rows, cols) = gridSizeFor(autoRows, autoCols);
     if (rows == _rows && cols == _cols) return;
     _rows = rows;
     _cols = cols;

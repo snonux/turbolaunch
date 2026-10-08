@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:turbolaunch/services/app_source.dart';
@@ -239,4 +241,63 @@ void main() {
     source.fileToOpen = null;
     expect(await c.importSettings(), isFalse);
   });
+
+  test('a cold start shows the last app list at once, then the current one', () async {
+    // The first run listed the apps and kept them.
+    final prefs = Map<String, Object>.from({
+      'appSnapshot': (await SharedPreferences.getInstance()).getString('appSnapshot')!,
+    });
+    final slow = _SlowSource([app('Calendar'), app('Notes'), app('Weather')]);
+    SharedPreferences.setMockInitialValues(prefs);
+    final next = LauncherController(slow, await LauncherStore.open());
+    addTearDown(next.dispose);
+    expect(next.loaded, isTrue);
+    expect(next.apps.map((a) => a.label), ['Calendar', 'maps', 'Music', 'Notes', 'Organic Maps']);
+
+    final refreshed = next.refresh();
+    slow.appsDone.complete();
+    slow.shortcutsDone.complete();
+    await refreshed;
+    expect(next.apps.map((a) => a.label), ['Calendar', 'Notes', 'Weather']);
+  });
+
+  test('apps show before the shortcuts are listed', () async {
+    final slow = _SlowSource(
+      [app('Notes')],
+      shortcuts: const [ShortcutEntry(packageName: 'org.example.notes', id: 'n', userSerial: 0, label: 'New note')],
+    );
+    SharedPreferences.setMockInitialValues({});
+    final next = LauncherController(slow, await LauncherStore.open());
+    addTearDown(next.dispose);
+    expect(next.loaded, isFalse, reason: 'no list from an earlier run');
+    final refreshed = next.refresh();
+    slow.appsDone.complete();
+    await pumpEventQueue();
+    expect(next.loaded, isTrue);
+    expect(next.apps.map((a) => a.label), ['Notes']);
+    slow.shortcutsDone.complete();
+    await refreshed;
+    next.query = 'new';
+    expect(next.results.map((r) => r.title), ['New note']);
+  });
+}
+
+/// Lists apps and shortcuts only when the test says so.
+class _SlowSource extends FakeAppSource {
+  _SlowSource(super.apps, {super.shortcuts});
+
+  final appsDone = Completer<void>();
+  final shortcutsDone = Completer<void>();
+
+  @override
+  Future<List<AppEntry>> listApps() async {
+    await appsDone.future;
+    return super.listApps();
+  }
+
+  @override
+  Future<List<ShortcutEntry>> shortcuts() async {
+    await shortcutsDone.future;
+    return super.shortcuts();
+  }
 }

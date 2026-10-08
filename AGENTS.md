@@ -13,6 +13,22 @@ build a release APK too, `flutter build apk --release --split-per-abi`,
 because the debug build hides signing and packaging problems. CI runs all of
 this, plus the plugin's Kotlin unit tests, on every push.
 
+**Every merge needs a full end-to-end run first** (snonux, 2026-10-08), not
+just green CI: `integration_test/` on the Linux build and
+`tool/e2e_android.sh` on an Android emulator, both run by CI:
+
+```sh
+xvfb-run -a flutter test integration_test -d linux
+flutter build apk --release --split-per-abi
+tool/e2e_android.sh build/app/outputs/flutter-apk/app-x86_64-release.apk  # emulator running
+```
+
+The Android script installs the APK, makes it the home app, searches and
+launches Settings with Enter, presses Home, checks the accessibility service
+and the log, and leaves screenshots in `build/e2e-android/`. Extend both with
+each feature a PR adds. Anything that can only be checked on a real phone
+(GrapheneOS, split screen) is said plainly in the PR.
+
 Toolchain: Flutter from `.flutter-version`, JDK **17 or 21** (Gradle 8.14
 rejects 25+).
 

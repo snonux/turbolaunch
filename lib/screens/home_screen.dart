@@ -161,7 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(width: 4),
                     IconButton.filledTonal(
                       key: const Key('open-settings'),
-                      tooltip: 'Settings',
+                      tooltip: 'TurboLaunch settings',
                       onPressed: _openSettings,
                       icon: const Icon(Icons.tune),
                     ),

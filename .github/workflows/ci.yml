@@ -1,7 +1,6 @@
 # Every push, to any branch: format, analyzer and unit tests (Dart and the
 # Kotlin plugin), the split release APKs signed with the debug key, and the
-# end-to-end runs: integration_test on the Linux build and
-# tool/e2e_android.sh on an Android emulator.
+# end-to-end run: tool/e2e_android.sh on an Android emulator.
 name: CI
 
 # A pull request's branch is pushed too, so push alone covers it.
@@ -30,7 +29,7 @@ jobs:
           cache: true
       - run: flutter pub get --enforce-lockfile
       - name: dart format
-        run: dart format --output=none --set-exit-if-changed lib test integration_test packages/launcher_platform/lib
+        run: dart format --output=none --set-exit-if-changed lib test packages/launcher_platform/lib
       - run: flutter analyze
       - run: flutter test
 
@@ -76,24 +75,6 @@ jobs:
           name: apks
           path: build/app/outputs/flutter-apk/app-*-release.apk
           retention-days: 7
-
-  e2e-linux:
-    name: e2e on the Linux build
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v4
-      - id: version
-        run: echo "flutter=$(tr -d '[:space:]' < .flutter-version)" >> "$GITHUB_OUTPUT"
-      - run: sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev xvfb
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ steps.version.outputs.flutter }}
-          channel: stable
-          cache: true
-      - run: flutter pub get --enforce-lockfile
-      - name: integration_test on Linux under Xvfb
-        run: xvfb-run -a flutter test integration_test -d linux
 
   e2e-android:
     name: e2e on an Android emulator

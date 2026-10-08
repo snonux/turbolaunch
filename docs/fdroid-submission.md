@@ -74,16 +74,12 @@ And TurboLaunch in the README's list of apps.
 
 ## Before the fdroiddata merge request
 
-The recipe still has two values that exist only after the first release:
-
-* **`commit:`** in all three build blocks says `v0.1.0`; F-Droid wants the
-  full hash of the tagged commit: `git rev-parse v0.1.0`.
-* **`AllowedAPKSigningKeys:`** says `RELEASE_CERT_SHA256`; it is the
-  SHA-256 of the release certificate, lower case without colons:
-
-  ```sh
-  keytool -list -v -keystore keys/turbolaunch-release.jks | grep -m1 SHA256: | sed 's/.*SHA256: //; s/://g' | tr A-F a-f
-  ```
+The recipe names the `v0.1.0` release: `commit:` is the full hash of the
+tagged commit (`git rev-parse v0.1.0^{commit}`), and
+`AllowedAPKSigningKeys:` the SHA-256 of the release certificate
+(`d35952b4…`, CN=TurboLaunch), which the release workflow's "Signed with
+the release key" step prints. For a later first submission, update the
+build blocks and `CurrentVersion*` to that release.
 
 Then follow Quicklog's "Submitting to fdroiddata": fork, copy the recipe to
 `metadata/org.buetow.turbolaunch.yml`, `fdroid lint`, `fdroid rewritemeta`

@@ -374,4 +374,15 @@ void main() {
       reason: 'bottom row, not a row of the squeezed grid',
     );
   });
+
+  testWidgets('each grid cell is its own accessibility node', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await start(tester, {'launchCounts': '{"org.example.maps/org.example.maps.Main#0": 1}'});
+    final node = tester.getSemantics(find.byKey(const ValueKey('cell-org.example.maps/org.example.maps.Main#0')));
+    expect(node.label, contains('Maps'));
+    final grid = tester.getSize(find.byKey(const Key('home-grid')));
+    expect(node.rect.width, lessThan(grid.width / 2), reason: 'not merged into the whole grid');
+    expect(node.rect.height, lessThan(grid.height / 2));
+    semantics.dispose();
+  });
 }

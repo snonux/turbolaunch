@@ -137,6 +137,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_c.settings.swipeNotifications) return child;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
+      // Its scroll actions would merge every cell into one semantics node,
+      // so TalkBack (and uiautomator) could no longer tell the apps apart.
+      excludeFromSemantics: true,
       onVerticalDragEnd: (d) {
         if ((d.primaryVelocity ?? 0) > 300) _c.source.expandNotifications();
       },
@@ -409,6 +412,7 @@ class _HomeGrid extends StatelessWidget {
                             ? GestureDetector(
                                 key: ValueKey('empty-$r-$c'),
                                 behavior: HitTestBehavior.opaque,
+                                excludeFromSemantics: true,
                                 onDoubleTap: onDoubleTap,
                                 child: const SizedBox.expand(),
                               )
@@ -447,44 +451,48 @@ class _GridCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      key: ValueKey('cell-${app.key}'),
-      borderRadius: BorderRadius.circular(16),
-      onTap: onTap,
-      onLongPress: onLongPress,
-      // Scales down rather than overflowing while the keyboard squeezes the grid.
-      child: LayoutBuilder(
-        builder: (context, box) => FittedBox(
-          fit: BoxFit.scaleDown,
-          child: SizedBox(
-            width: box.maxWidth,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    AppIcon(app: app, cache: icons, size: 48),
-                    if (app.otherProfile)
-                      const Positioned(right: -4, bottom: -4, child: Icon(Icons.work, size: 16, color: Colors.white)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
-                  child: Text(
-                    app.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 12 * labelScale,
-                      color: Colors.white,
-                      shadows: const [Shadow(blurRadius: 4, color: Colors.black87)],
+    // Each cell is its own accessibility node, whatever wraps the grid.
+    return Semantics(
+      container: true,
+      child: InkWell(
+        key: ValueKey('cell-${app.key}'),
+        borderRadius: BorderRadius.circular(16),
+        onTap: onTap,
+        onLongPress: onLongPress,
+        // Scales down rather than overflowing while the keyboard squeezes the grid.
+        child: LayoutBuilder(
+          builder: (context, box) => FittedBox(
+            fit: BoxFit.scaleDown,
+            child: SizedBox(
+              width: box.maxWidth,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      AppIcon(app: app, cache: icons, size: 48),
+                      if (app.otherProfile)
+                        const Positioned(right: -4, bottom: -4, child: Icon(Icons.work, size: 16, color: Colors.white)),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: Text(
+                      app.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 12 * labelScale,
+                        color: Colors.white,
+                        shadows: const [Shadow(blurRadius: 4, color: Colors.black87)],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

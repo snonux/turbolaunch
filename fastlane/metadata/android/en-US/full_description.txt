@@ -1,0 +1,14 @@
+TurboLaunch is a small, search-first home screen for Android, made for GrapheneOS and other Google-free phones.
+
+Press Home, type two or three letters, hit Enter, and the app opens.
+
+* Every installed app in one list over your wallpaper, work profile apps included
+* A search box always docked at the bottom, within thumb reach
+* Long-press an app for its app info
+* No tracking, no ads, no Google Play Services
+
+Permissions and features you should know about:
+
+* Accessibility service (optional, off by default): TurboLaunch actions only switches the screen into split screen to open an app pair. It reads no screen content and sees nothing you type.
+
+TurboLaunch is in early development. Coming next: fuzzy search, a home grid filled by how often you launch apps, wallpapers, and optional sync of launch counts to your own S3 bucket.

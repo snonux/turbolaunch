@@ -1,0 +1,1 @@
+First release: lists and launches every app, search box at the bottom, app pair test in settings.

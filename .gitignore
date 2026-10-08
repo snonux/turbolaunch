@@ -1,0 +1,42 @@
+# Dart / Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+.dart_tool/
+pubspec.lock.bak
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+
+# Signing keys -- NEVER commit. The keystore in keys/ is the app's permanent
+# identity on F-Droid; losing or leaking it cannot be undone.
+# Note it is ignored, not untracked-by-accident: `git clean -xfd` WILL delete it.
+keys/
+*.jks
+*.keystore
+
+# Android
+android/.gradle/
+android/.kotlin/
+android/local.properties
+android/captures/
+android/.cxx/
+android/key.properties
+*.jks
+*.keystore
+
+# Linux
+linux/flutter/ephemeral/
+
+# Misc
+.DS_Store
+.claude/
+.serena/

@@ -1,0 +1,43 @@
+name: turbolaunch
+description: "TurboLaunch - a search-first KISS home screen for Android."
+publish_to: 'none'
+
+# <semver>+<buildNumber>. The build number is a plain counter -- bump it by one
+# for every release, never reuse or lower it. android/app/build.gradle.kts turns
+# it into a per-ABI version code of `buildNumber * 10 + abi` (see AGENTS.md).
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  launcher_platform:
+    path: packages/launcher_platform
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    # Read at runtime for the settings screen's version line
+    # (lib/services/app_version.dart), so the version: line above stays the
+    # single source of truth.
+    - pubspec.yaml
+
+# Regenerate the launcher icons after changing the logo:
+#   dart run flutter_launcher_icons
+# The PNGs are rendered from assets/logo/*.svg (see AGENTS.md).
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "logo.png"
+  min_sdk_android: 26
+  adaptive_icon_background: "#1D1D1F"
+  adaptive_icon_foreground: "assets/logo/foreground.png"
+  adaptive_icon_monochrome: "assets/logo/monochrome.png"

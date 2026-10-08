@@ -12,7 +12,7 @@ feature with screenshots and a short recording.
 
 | | |
 |---|---|
-| ![Home screen: clock and battery on top, the most-launched apps near the bottom, the search box below](docs/guide/images/home.png) | ![Typing "clk", Enter opens Clock, Home comes back to the grid](docs/guide/images/search.gif) |
+| ![Home screen: clock and battery on top, the most-launched apps near the bottom, the search box below](docs/guide/images/home.png) | ![Typing "clk" and Enter opens Clock](docs/guide/images/search.gif) |
 | The home screen | Type, Enter, done |
 
 ## Highlights

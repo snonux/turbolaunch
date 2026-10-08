@@ -176,13 +176,15 @@ vX.Y.Z; and git push; and git push --tags`.
 `docs/guide/images/` (and F-Droid's `phoneScreenshots/`) on the emulator,
 with its own apps only, so they hold no personal data. The Android e2e runs
 it at its end, into `build/shots-android/`. CI artifacts cannot be reached
-from the cloud container, so to refresh the shots from there, run the e2e
-with `SHOTS_TO_LOG=1` for the script: it prints each file base64-encoded
-between `=== SHOT name` and `=== END` lines of the job log. The GIF is made
+from the cloud container, so to refresh the shots from there, push a
+temporary `export SHOTS_TO_LOG=1` near the top of `tool/e2e_android.sh`: it prints each file base64-encoded
+between `=== SHOT name` and `=== END` lines at the tail of the job log.
+The PNGs go to `docs/guide/images/` and, as `1.png` to `5.png` (home,
+search, menu, settings, stats), to F-Droid's `phoneScreenshots/`. The GIF is made
 from `search.mp4`:
 
 ```sh
-ffmpeg -i search.mp4 -vf "fps=10,scale=360:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" docs/guide/images/search.gif
+ffmpeg -ss 2.2 -i search.mp4 -vf "fps=10,scale=360:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" docs/guide/images/search.gif
 ```
 
 ## Icons

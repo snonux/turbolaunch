@@ -215,5 +215,5 @@ dump
 expect_ui "home again after the restart" 'resource-id="search"'
 
 # 12. Screenshots and a recording for the README, the guide and F-Droid.
-if SHOTS_TO_LOG=1 tool/shots_android.sh; then pass "screenshots taken"; else fail "screenshots taken"; fi
+if tool/shots_android.sh; then pass "screenshots taken"; else fail "screenshots taken"; fi
 exit $failed

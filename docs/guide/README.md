@@ -62,23 +62,24 @@ settings, so Home always brings you back to this screen.
 
 ## Searching
 
-![Typing "ch" lists Chrome and Chrome's shortcuts, the matched letters highlighted](images/search.png)
+![Typing "ch": Chrome, the top match, right above the search box, with app shortcuts such as Voice search above it](images/search.png)
 
 Tap the search box (or turn on **Open the keyboard on Home** in settings)
 and type a few letters of the app. The search works like
 [fzf](https://github.com/junegunn/fzf): the letters must come in order but
 may have gaps, so "orgm" finds Organic Maps and "sttngs" finds Settings.
 Letters at the start of a word, and letters next to each other, count for
-more, so the app you mean is usually first. Matched letters are
+more. The best match sits at the bottom of the list, right above the
+search box, and the app you mean is usually that one. Matched letters are
 highlighted.
 
-**Enter opens the top result.** Tapping any result opens that one.
+**Enter opens the best match.** Tapping any result opens that one.
 
-App shortcuts are results too, below the apps: "New tab" for the browser,
+App shortcuts are results too: "New tab" for the browser,
 "New note", "Navigate home" and whatever else your apps offer on a
 long-press elsewhere.
 
-![Typing "clk", Enter opens Clock, Home comes back to the grid](images/search.gif)
+![Typing "clk" and Enter opens Clock](images/search.gif)
 
 The × in the search box, Back or Home clear the search.
 

@@ -1,0 +1,15 @@
+name: launcher_platform
+description: Android launcher APIs for TurboLaunch (LauncherApps, icons, launching, home presses, app pairs).
+version: 0.1.0
+publish_to: none
+environment:
+  sdk: ^3.11.5
+dependencies:
+  flutter:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: org.buetow.turbolaunch
+        pluginClass: LauncherPlatformPlugin

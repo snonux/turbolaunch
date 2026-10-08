@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 
 import 'screens/home_screen.dart';
@@ -11,8 +9,7 @@ import 'widgets/app_icon.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // The Linux desktop build is the dev loop: a fake app list instead of Android's.
-  final AppSource source = Platform.isAndroid ? PlatformAppSource() : FakeAppSource.demo();
+  final AppSource source = PlatformAppSource();
   final store = await LauncherStore.open();
   runApp(TurboLaunchApp(source: source, store: store));
   StartupTimer.measureAfterFirstFrame(source);

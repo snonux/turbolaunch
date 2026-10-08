@@ -35,7 +35,13 @@ for node in re.findall(r'<node [^>]*>', xml):
         break
 PY
 }
-expect_ui() { if grep -q -- "$2" "$out/ui.xml"; then pass "$1"; else fail "$1 (no '$2' on screen)"; fi; }
+expect_ui() {
+  if grep -q -- "$2" "$out/ui.xml"; then
+    pass "$1"
+  else
+    fail "$1 (no '$2' on screen; it shows: $(grep -o '\(text\|content-desc\)="[^"]\+"' "$out/ui.xml" | head -12 | tr '\n' ' '))"
+  fi
+}
 expect_focus() { if focused | grep -q "$2"; then pass "$1"; else fail "$1 (focus: $(focused | tr '\n' ' '))"; fi; }
 tap_on() {
   dump
@@ -51,6 +57,11 @@ adb shell settings put global transition_animation_scale 0
 adb shell settings put global animator_duration_scale 0
 adb logcat -c
 adb install -r "$apk"
+# Flutter builds its semantics tree, which uiautomator reads, only while an
+# accessibility service is on. Turning on TurboLaunch's own (opt-in) service
+# does that and lets settings show it as on later.
+adb shell settings put secure enabled_accessibility_services "$app/$app.TurboLaunchAccessibilityService"
+adb shell settings put secure accessibility_enabled 1
 adb shell cmd package set-home-activity "$app/.MainActivity"
 adb shell input keyevent KEYCODE_HOME
 sleep 8
@@ -116,14 +127,12 @@ if [ -n "$xy" ]; then
   sleep 2; pass "quick hide toggled"
 fi
 
-# 8. Settings sees the accessibility service once it is turned on.
-adb shell settings put secure enabled_accessibility_services "$app/$app.TurboLaunchAccessibilityService"
-adb shell settings put secure accessibility_enabled 1
-sleep 3
+# 8. Settings sees the accessibility service, turned on at the start.
 tap_on "TurboLaunch settings" && sleep 3
 dump; shot settings
 expect_ui "settings open" 'Set as home app'
-expect_ui "accessibility service seen as on" 'Accessibility service[^"]*On'
+expect_ui "accessibility service listed" 'Accessibility service'
+if grep -q 'Off: tap to open' "$out/ui.xml"; then fail "accessibility service seen as on"; else pass "accessibility service seen as on"; fi
 expect_ui "cold start shown" 'ms from process start'
 adb shell input keyevent KEYCODE_BACK
 sleep 2; dump

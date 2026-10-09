@@ -4,7 +4,9 @@
 # search box lists the device's apps, that a fuzzy search and Enter launch the
 # top match, that Home returns with the search cleared and the launched app on
 # the home grid, that the long-press menu and quick hide work, that cold start
-# and home-ready times are logged (again after a restart), that a swipe down opens the notification shade, that settings sees
+# and home-ready times are logged (again after a restart), that a swipe down opens the
+# notification shade, a swipe up the search, and a gesture recorded in settings
+# quick settings, that settings sees
 # the accessibility service and shows the launch stats, and that a double-tap on
 # empty home space locks the phone. Screenshots, UI dumps and the log go to
 # build/e2e-android/; at the end tool/bench_android.sh measures speed and
@@ -190,6 +192,62 @@ fi
 adb shell cmd statusbar collapse
 sleep 2
 expect_focus "shade closed, home again" "$app"
+
+# 9c. A swipe up opens the search with the keyboard up and the box focused.
+adb shell input swipe $((w / 2)) $((h * 7 / 10)) $((w / 2)) $((h * 3 / 10)) 150
+sleep 2; shot swipe_up_search; dump
+if grep -o '<node [^>]*resource-id="search"[^>]*>' "$out/ui.xml" | grep -q 'focused="true"'; then
+  pass "swipe up focuses the search box"
+else
+  fail "swipe up focuses the search box"
+fi
+if adb shell dumpsys input_method | grep -q 'mInputShown=true'; then
+  pass "swipe up opens the keyboard"
+else
+  fail "swipe up opens the keyboard"
+fi
+expect_ui "swipe up lists the apps" 'Camera\|Chrome\|Clock'
+adb shell input keyevent KEYCODE_HOME
+sleep 2
+
+# 9d. Record a gesture (down, then right) in settings, give it quick
+#     settings, and draw it on the home screen.
+draw_down_right() { # x y: start; strokes of 300 px in 30 px steps, one touch
+  local x=$1 y=$2 cmd="input motionevent DOWN $1 $2"
+  for i in $(seq 1 10); do cmd="$cmd; input motionevent MOVE $x $((y + i * 30))"; done
+  y=$((y + 300))
+  for i in $(seq 1 10); do cmd="$cmd; input motionevent MOVE $((x + i * 30)) $y"; done
+  adb shell "$cmd; input motionevent UP $((x + 300)) $y"
+}
+tap_on "TurboLaunch settings" && sleep 3
+dump
+for _ in 1 2 3 4 5 6 7 8; do
+  grep -q 'Record a gesture' "$out/ui.xml" && break
+  adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300; sleep 1; dump
+done
+shot settings_gestures
+expect_ui "gestures listed in settings" 'Swipe up'
+tap_on "Record a gesture" && sleep 2
+draw_down_right $((w / 3)) $((h * 3 / 10))
+sleep 2; dump; shot gesture_recorded
+expect_ui "gesture recorded" '↓ →'
+tap_on "Use it" && sleep 2
+tap_on "Quick settings" && sleep 2
+dump
+expect_ui "recorded gesture listed" 'Quick settings'
+adb shell input keyevent KEYCODE_BACK
+sleep 2
+draw_down_right $((w / 3)) $((h * 3 / 10))
+sleep 2; shot gesture_quick_settings; dump
+if grep -q 'package="com.android.systemui"' "$out/ui.xml"; then
+  pass "recorded gesture opens quick settings"
+else
+  fail "recorded gesture opens quick settings ($(focused | tr '\n' ' '))"
+  adb logcat -d | grep 'TurboLaunch' | tail -5
+fi
+adb shell cmd statusbar collapse
+sleep 2
+expect_focus "quick settings closed, home again" "$app"
 
 # 10. No crash anywhere.
 adb logcat -d >"$out/logcat.txt"

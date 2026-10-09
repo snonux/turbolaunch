@@ -97,6 +97,16 @@ abstract class AppSource {
   /// Pulls down the notification shade; false when Android refused.
   Future<bool> expandNotifications();
 
+  /// Pulls down the quick settings panel; false when Android refused.
+  Future<bool> expandQuickSettings();
+
+  /// One of the accessibility service's global actions: `recents`,
+  /// `powerMenu`, `screenshot` or `splitScreen`. False when the service is off.
+  Future<bool> globalAction(String name);
+
+  /// Turns the flashlight on or off; false when there is none.
+  Future<bool> toggleFlashlight();
+
   /// Saves [content] where the user picks; the file's name, or null when cancelled.
   Future<String?> saveTextFile(String name, String content);
 
@@ -162,6 +172,15 @@ class PlatformAppSource implements AppSource {
   Future<bool> expandNotifications() => _platform.expandNotifications();
 
   @override
+  Future<bool> expandQuickSettings() => _platform.expandQuickSettings();
+
+  @override
+  Future<bool> globalAction(String name) => _platform.globalAction(name);
+
+  @override
+  Future<bool> toggleFlashlight() => _platform.toggleFlashlight();
+
+  @override
   Future<String?> saveTextFile(String name, String content) => _platform.saveTextFile(name, content);
 
   @override
@@ -212,6 +231,9 @@ class FakeAppSource implements AppSource {
   final pairs = <(AppEntry, AppEntry)>[];
   int locks = 0;
   int shades = 0;
+  int quickSettings = 0;
+  final globalActions = <String>[];
+  bool flashlight = false;
 
   /// Files "saved" through [saveTextFile], by name; [openTextFile] returns [fileToOpen].
   final savedFiles = <String, String>{};
@@ -263,6 +285,25 @@ class FakeAppSource implements AppSource {
   @override
   Future<bool> expandNotifications() async {
     shades++;
+    return true;
+  }
+
+  @override
+  Future<bool> expandQuickSettings() async {
+    quickSettings++;
+    return true;
+  }
+
+  @override
+  Future<bool> globalAction(String name) async {
+    if (!serviceEnabled) return false;
+    globalActions.add(name);
+    return true;
+  }
+
+  @override
+  Future<bool> toggleFlashlight() async {
+    flashlight = !flashlight;
     return true;
   }
 

@@ -95,6 +95,15 @@ class LauncherController extends ChangeNotifier {
   /// Installed apps without the pairs, for picking a pair's apps.
   List<AppEntry> get installedApps => _installed;
   List<AppPair> get pairs => List.unmodifiable(_pairs);
+
+  /// Every app's shortcuts, for picking one for a gesture.
+  List<ShortcutEntry> get shortcuts => _shortcuts;
+
+  /// The app [s] belongs to, if it is installed.
+  AppEntry? shortcutOwner(ShortcutEntry s) => _owners[(s.packageName, s.userSerial)];
+
+  /// The app or app pair with [key], if both its apps are installed.
+  AppEntry? entryByKey(String key) => _apps.where((a) => a.key == key).firstOrNull;
   String get query => _query;
   bool get loaded => _loaded;
   Map<String, int> get counts => Map.unmodifiable(_counts);

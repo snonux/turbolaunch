@@ -114,16 +114,27 @@ Long-press an app, on the grid or in the search results:
 
 ## Gestures
 
-* **Swipe down** anywhere on the home screen to pull down the notification
-  shade.
+* **Swipe up** on the home screen to open the search with the keyboard up.
+* **Swipe down** to pull down the notification shade.
 * **Double-tap empty space** to lock the phone. Taps on apps stay instant;
   only empty cells and wallpaper listen for double-taps.
 * **Long-press the clock line** to hide the grid (quick hide), and again to
   show it.
 
-Locking needs the accessibility service, see
-[Privacy and permissions](#privacy-and-permissions). Turn each gesture
-on or off under **Gestures** in settings.
+Under **Gestures** in settings, tap a swipe (up, down, left or right) to
+choose what it does: open the search, notifications, quick settings, an
+app, an app pair or an app shortcut, lock the screen, recent apps, the
+power menu, a screenshot, split screen, the flashlight, quick hide,
+TurboLaunch's settings or the launch stats, or nothing.
+
+**Record a gesture** adds your own: draw a chain of straight strokes on the
+pad, such as up then right, then pick what it does. Start gestures on empty
+home space and a little away from the screen edges, where Android's own
+back and home gestures win. A recorded gesture can be deleted with its bin
+icon.
+
+Locking, recent apps, the power menu, screenshots and split screen need the
+accessibility service, see [Privacy and permissions](#privacy-and-permissions).
 
 ## App pairs
 
@@ -163,8 +174,8 @@ The sliders button next to the search box opens settings:
 * **Home grid**: columns and rows (Auto, or a number), and whether to show
   the clock line.
 * **Search**: open the keyboard on Home, and icons in the search results.
-* **Gestures**: the accessibility service, double-tap to lock and swipe
-  down for notifications.
+* **Gestures**: the accessibility service, double-tap to lock, what each
+  swipe does, and your own recorded gestures.
 * **Font sizes** for grid labels, search results and the clock line.
 * **Hidden apps**, **App pairs** and **Your data** (export and import).
 
@@ -197,15 +208,17 @@ It asks for:
 * **Set wallpaper**, for the wallpaper setting.
 * **Request uninstall**, so the menu can ask Android to uninstall an app
   (Android still asks you).
-* **Expand status bar**, for swipe down when the accessibility service is
-  off. It uses a hidden Android call that home apps have long relied on; if
+* **Expand status bar**, for notifications and quick settings when the
+  accessibility service is off. It uses a hidden Android call that home apps have long relied on; if
   a future Android removes it, the swipe simply does nothing.
 
 **The accessibility service "TurboLaunch actions" is optional and off
 until you turn it on** under *Settings, Accessibility* (the **Accessibility
 service** line in TurboLaunch's settings takes you there). It only performs
-three system actions: lock the screen on a double-tap, pull down the
-notifications, and switch into split screen for an app pair. It reads no
+system actions: lock the screen on a double-tap, pull down the
+notifications or quick settings, switch into split screen for an app pair,
+and open recent apps, the power menu or take a screenshot when a gesture you
+set up asks for it. It reads no
 screen content and sees nothing you type.
 
 ## Building it yourself

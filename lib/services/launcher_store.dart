@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'app_pairs.dart';
 import 'app_source.dart';
+import 'gestures.dart';
 import 'home_grid.dart';
 
 /// User settings, all with defaults that work without any setup.
@@ -18,7 +19,7 @@ class LauncherSettings {
     this.showClock = true,
     this.iconsInResults = true,
     this.doubleTapLock = true,
-    this.swipeNotifications = true,
+    this.gestures = Gestures.defaults,
   });
 
   /// 0 means automatic, from the screen size.
@@ -38,8 +39,12 @@ class LauncherSettings {
   /// Double-tap on empty home space locks the phone (needs the accessibility service).
   final bool doubleTapLock;
 
-  /// Swipe down on the home screen pulls the notification shade.
-  final bool swipeNotifications;
+  /// Swipe gestures on the home screen: gesture code (see [Gestures]) to
+  /// encoded [GestureAction]. A gesture that is not here does nothing.
+  final Map<String, String> gestures;
+
+  GestureAction gestureAction(String code) =>
+      gestures[code] == null ? GestureAction.none : GestureAction.decode(gestures[code]!);
 
   static const minScale = 0.8;
   static const maxScale = 1.6;
@@ -54,7 +59,7 @@ class LauncherSettings {
     bool? showClock,
     bool? iconsInResults,
     bool? doubleTapLock,
-    bool? swipeNotifications,
+    Map<String, String>? gestures,
   }) => LauncherSettings(
     gridRows: gridRows ?? this.gridRows,
     gridCols: gridCols ?? this.gridCols,
@@ -65,7 +70,7 @@ class LauncherSettings {
     showClock: showClock ?? this.showClock,
     iconsInResults: iconsInResults ?? this.iconsInResults,
     doubleTapLock: doubleTapLock ?? this.doubleTapLock,
-    swipeNotifications: swipeNotifications ?? this.swipeNotifications,
+    gestures: gestures ?? this.gestures,
   );
 
   Map<String, Object> toJson() => {
@@ -78,7 +83,7 @@ class LauncherSettings {
     'showClock': showClock,
     'iconsInResults': iconsInResults,
     'doubleTapLock': doubleTapLock,
-    'swipeNotifications': swipeNotifications,
+    'gestures': gestures,
   };
 
   factory LauncherSettings.fromJson(Map<String, Object?> j) {
@@ -94,8 +99,23 @@ class LauncherSettings {
       showClock: j['showClock'] as bool? ?? true,
       iconsInResults: j['iconsInResults'] as bool? ?? true,
       doubleTapLock: j['doubleTapLock'] as bool? ?? true,
-      swipeNotifications: j['swipeNotifications'] as bool? ?? true,
+      gestures: _gestures(j),
     );
+  }
+
+  /// The gestures, or for settings from before gestures the defaults, with
+  /// swipe down off if "Swipe down for notifications" was.
+  static Map<String, String> _gestures(Map<String, Object?> j) {
+    final raw = j['gestures'];
+    if (raw is Map) {
+      return Map.unmodifiable({
+        for (final e in raw.entries)
+          if (e.key is String && e.value is String && Gestures.valid(e.key as String))
+            e.key as String: e.value as String,
+      });
+    }
+    if (j['swipeNotifications'] == false) return const {'U': 'search'};
+    return Gestures.defaults;
   }
 }
 

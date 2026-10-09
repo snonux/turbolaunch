@@ -82,6 +82,17 @@ class LauncherPlatform {
   /// Pulls down the notification shade; false when Android refused.
   Future<bool> expandNotifications() async => await _channel.invokeMethod<bool>('expandNotifications') ?? false;
 
+  /// Pulls down the quick settings panel; false when Android refused.
+  Future<bool> expandQuickSettings() async => await _channel.invokeMethod<bool>('expandQuickSettings') ?? false;
+
+  /// Performs a global action through the accessibility service: `recents`,
+  /// `powerMenu`, `screenshot` or `splitScreen`. False when the service is off.
+  Future<bool> globalAction(String name) async =>
+      await _channel.invokeMethod<bool>('globalAction', {'name': name}) ?? false;
+
+  /// Turns the flashlight on or off; false when there is none.
+  Future<bool> toggleFlashlight() async => await _channel.invokeMethod<bool>('toggleFlashlight') ?? false;
+
   /// Saves [content] where the user picks, through the system file dialog.
   /// Returns the file's name, or null when the user cancelled.
   Future<String?> saveTextFile(String name, String content) =>

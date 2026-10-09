@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 
 import '../services/app_source.dart';
 import '../services/bench.dart';
+import '../services/gestures.dart';
 import '../services/home_grid.dart';
 import '../services/launcher_controller.dart';
 import '../widgets/app_icon.dart';
 import 'settings_screen.dart';
+import 'stats_screen.dart';
 
 /// The home screen: the clock line at the top, the home grid filled by
 /// launch count, and the search box docked at the bottom within thumb reach.
@@ -124,35 +126,80 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Double-tap on empty home space: lock the phone.
   Future<void> _lock() async {
-    if (await _c.source.lockScreen() || !mounted) return;
+    if (await _c.source.lockScreen()) return;
+    _needsService('Locking');
+  }
+
+  void _needsService(String what) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Double-tap to lock needs TurboLaunch actions turned on under Accessibility.'),
+        content: Text('$what needs TurboLaunch actions turned on under Accessibility.'),
         action: SnackBarAction(label: 'Open', onPressed: _c.source.openAccessibilitySettings),
       ),
     );
   }
 
-  /// How far the current vertical drag has gone down, in logical pixels.
-  double _pull = 0;
-  static const _pullToOpen = 80.0;
+  /// The path of the swipe in progress, in the home area's logical pixels.
+  final _path = <Offset>[];
 
-  /// Swipe down on the home screen: the notification shade. Fails silently.
+  /// Swipes on empty home space: each recognised gesture runs the action
+  /// settings give it (see [Gestures]).
   Widget _gestures(Widget child) {
-    if (!_c.settings.swipeNotifications) return child;
+    if (_c.settings.gestures.isEmpty) return child;
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      // Its scroll actions would merge every cell into one semantics node,
+      // Its drag actions would merge every cell into one semantics node,
       // so TalkBack (and uiautomator) could no longer tell the apps apart.
       excludeFromSemantics: true,
-      // A fling down, or a slower pull that goes far enough.
-      onVerticalDragStart: (_) => _pull = 0,
-      onVerticalDragUpdate: (d) => _pull += d.delta.dy,
-      onVerticalDragEnd: (d) {
-        if ((d.primaryVelocity ?? 0) > 300 || _pull > _pullToOpen) _c.source.expandNotifications();
+      onPanStart: (d) => _path
+        ..clear()
+        ..add(d.localPosition),
+      onPanUpdate: (d) => _path.add(d.localPosition),
+      onPanEnd: (d) {
+        final code = Gestures.recognize(_path, velocity: d.velocity.pixelsPerSecond);
+        _path.clear();
+        if (code.isNotEmpty) _run(_c.settings.gestureAction(code));
       },
+      onPanCancel: _path.clear,
       child: child,
     );
+  }
+
+  Future<void> _run(GestureAction action) async {
+    switch (action.kind) {
+      case GestureKind.none:
+        return;
+      case GestureKind.search:
+        _focus.requestFocus();
+      case GestureKind.notifications:
+        await _c.source.expandNotifications();
+      case GestureKind.quickSettings:
+        await _c.source.expandQuickSettings();
+      case GestureKind.launch:
+        final app = _c.entryByKey(action.target ?? '');
+        if (app != null) await _c.launch(app);
+      case GestureKind.shortcut:
+        final s = action.shortcutIn(_c.shortcuts);
+        if (s != null) await _c.source.startShortcut(s);
+      case GestureKind.lock:
+        await _lock();
+      case GestureKind.recents || GestureKind.powerMenu || GestureKind.screenshot || GestureKind.splitScreen:
+        if (!await _c.source.globalAction(action.kind.name)) _needsService(action.kind.label);
+      case GestureKind.flashlight:
+        await _c.source.toggleFlashlight();
+      case GestureKind.quickHide:
+        _c.toggleQuickHide();
+      case GestureKind.settings:
+        _openSettings();
+      case GestureKind.stats:
+        _focus.unfocus();
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => StatsScreen(controller: _c, icons: widget.icons),
+          ),
+        );
+    }
   }
 
   void _openSettings() {
@@ -287,6 +334,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   filled: true,
                   fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.9),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(28), borderSide: BorderSide.none),
+                  // A swipe up lands here; the outline shows where typing goes.
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(28),
+                    borderSide: BorderSide(color: scheme.primary, width: 2),
+                  ),
                 ),
               ),
             ),

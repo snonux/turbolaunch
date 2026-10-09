@@ -43,6 +43,7 @@ rejects 25+).
 | `lib/services/app_pairs.dart` | `AppPair`: a saved pair is an app of its own, keyed `pair:<first>\|<second>` |
 | `lib/services/settings_backup.dart` | The export file format (adapted from Quicklog's), validated before anything is written |
 | `lib/services/fuzzy.dart` | The fzf-style scorer (greedy, word starts and runs score higher) |
+| `lib/services/gestures.dart` | Swipe gestures: the stroke recognizer and the actions a gesture can run |
 | `lib/services/home_grid.dart` | Pure placement rules for the home grid and the automatic grid size |
 | `lib/services/launcher_store.dart` | Settings and state in SharedPreferences |
 | `lib/screens/` | Home screen (clock line, grid, results, search box, gestures), settings, stats |
@@ -78,9 +79,18 @@ app list, so most work needs no device.
 * The accessibility service `TurboLaunchAccessibilityService` is opt-in and
   only performs global actions: lock screen (double-tap on empty home
   space), notifications and split screen. It reads no window content.
-* Swipe down (a fling, or a pull of at least 80 dp) uses the service's `GLOBAL_ACTION_NOTIFICATIONS` when it is on,
-  else the hidden `StatusBarManager.expandNotificationsPanel` with
-  `EXPAND_STATUS_BAR`; any failure is silent.
+* Swipes on the home area are gestures (`Gestures.recognize`): a chain of
+  straight strokes coded `U`, `D`, `L`, `R`, e.g. `UR` for up then right.
+  A plain swipe needs 80 dp or a fling; a stroke in a chain needs 40 dp.
+  Settings map codes to actions (`gestures` in the settings JSON); the
+  defaults are up for search and down for notifications. Settings from
+  before gestures with `swipeNotifications: false` keep swipe down off.
+* Notifications and quick settings use the service's global action when it
+  is on, else the hidden `StatusBarManager.expandNotificationsPanel` or
+  `expandSettingsPanel` with `EXPAND_STATUS_BAR`; any failure is silent.
+  Recents, power menu, screenshot and split screen need the service. The
+  flashlight uses `CameraManager.setTorchMode` (no permission); its torch
+  callback is registered on the first toggle, not at start.
 * Only empty cells listen for double-taps, because a double-tap detector
   holds single taps back for 300 ms; taps on apps stay instant.
 * Icons are rendered once and kept as PNGs in the cache dir

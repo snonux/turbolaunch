@@ -9,7 +9,11 @@ import 'package:turbolaunch/services/settings_backup.dart';
 void main() {
   final at = DateTime.utc(2026, 10, 8, 12);
   final full = LauncherBackup(
-    settings: const LauncherSettings(gridRows: 4, labelScale: 1.2, swipeNotifications: false),
+    settings: const LauncherSettings(
+      gridRows: 4,
+      labelScale: 1.2,
+      gestures: {'U': 'search', 'UR': 'launch:pair:a|b', 'L': 'flashlight'},
+    ),
     hidden: {'a/a.Main#0'},
     removedFromHome: {'b/b.Main#0'},
     pairs: const [AppPair(name: 'Drive', first: 'a/a.Main#0', second: 'b/b.Main#0')],

@@ -92,14 +92,18 @@ class _SyncScreenState extends State<SyncScreen> {
 
   Widget _field(String key, TextEditingController c, String label, {String? hint, bool secret = false}) => Padding(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-    child: TextField(
-      key: Key(key),
-      controller: c,
-      obscureText: secret,
-      autocorrect: false,
-      enableSuggestions: false,
-      decoration: InputDecoration(labelText: label, hintText: hint),
-      onChanged: (_) => _save(),
+    // The label is not dumped by uiautomator; the e2e finds the field by [key].
+    child: Semantics(
+      identifier: key,
+      child: TextField(
+        key: Key(key),
+        controller: c,
+        obscureText: secret,
+        autocorrect: false,
+        enableSuggestions: false,
+        decoration: InputDecoration(labelText: label, hintText: hint),
+        onChanged: (_) => _save(),
+      ),
     ),
   );
 

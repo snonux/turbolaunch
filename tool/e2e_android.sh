@@ -265,7 +265,11 @@ s3_clear() {
   done
 }
 hide_keyboard() { if adb shell dumpsys input_method | grep -q 'mInputShown=true'; then adb shell input keyevent KEYCODE_BACK; sleep 1; fi; }
-type_into() { tap_on "$1" && sleep 1 && adb shell input text "$2"; sleep 1; }
+type_into() { # resource-id text: finds the field above or below, types into it
+  scroll_to "resource-id=\"$1\"" down || scroll_to "resource-id=\"$1\"" up || true
+  tap_on "$1" && sleep 1 && adb shell input text "$2"
+  sleep 1
+}
 scroll_to() { # text, direction up|down
   dump
   for _ in 1 2 3 4 5 6; do
@@ -277,6 +281,7 @@ scroll_to() { # text, direction up|down
     fi
     sleep 1; dump
   done
+  grep -q -- "$1" "$out/ui.xml"
 }
 live=0
 [ -n "${S3_TEST_ACCESS_KEY_ID:-}" ] && [ -n "${S3_TEST_SECRET_KEY:-}" ] && live=1
@@ -292,36 +297,37 @@ tap_on "Share launch counts" && sleep 2
 dump; shot sync
 expect_ui "sync screen open" 'Sync between phones'
 tap_on sync-enabled && sleep 1
-scroll_to 'resource-id="sync-now"' down
+scroll_to 'resource-id="sync-now"' down || true
 tap_on sync-now && sleep 3
-scroll_to 'Last sync' down; shot sync_no_keys
+scroll_to 'Enter the access key ID' down || true; shot sync_no_keys
 expect_ui "Sync now without keys asks for them" 'Enter the access key ID'
-scroll_to 'Endpoint' up
+scroll_to 'resource-id="sync-endpoint"' up || true
 if [ $live = 1 ]; then
-  type_into "Endpoint" "${S3_TEST_ENDPOINT:-https://garage.f3s.buetow.org}"
+  type_into sync-endpoint "${S3_TEST_ENDPOINT:-https://garage.f3s.buetow.org}"
   hide_keyboard
-  type_into "Bucket" "${S3_TEST_BUCKET:-turbolaunch-test}"
+  type_into sync-bucket "${S3_TEST_BUCKET:-turbolaunch-test}"
   hide_keyboard
-  type_into "Access key ID" "$S3_TEST_ACCESS_KEY_ID"
+  type_into sync-key-id "$S3_TEST_ACCESS_KEY_ID"
   hide_keyboard
-  type_into "Secret key" "$S3_TEST_SECRET_KEY"
+  type_into sync-secret "$S3_TEST_SECRET_KEY"
 else
-  type_into "Endpoint" "http://127.0.0.1:9"
+  type_into sync-endpoint "http://127.0.0.1:9"
   hide_keyboard
-  type_into "Access key ID" "e2e"
+  type_into sync-key-id "e2e"
   hide_keyboard
-  type_into "Secret key" "e2e"
+  type_into sync-secret "e2e"
 fi
 hide_keyboard
-scroll_to "This phone" down
-type_into "This phone" "e2e"
+scroll_to 'resource-id="sync-name"' down || true
+type_into sync-name "e2e"
 hide_keyboard
-scroll_to 'resource-id="sync-now"' down
+scroll_to 'resource-id="sync-now"' down || true
 tap_on sync-now && sleep 15
-scroll_to 'Last sync' down; shot sync_done
+if [ $live = 1 ]; then scroll_to 'Synced with' down || true; else scroll_to 'Sync failed' down || true; fi
+shot sync_done
 if [ $live = 1 ]; then
   expect_ui "Sync now syncs with the second phone" 'Synced with 1 other phone'
-  scroll_to 'e2e other phone' down
+  scroll_to 'e2e other phone' down || true
   expect_ui "second phone listed" 'e2e other phone'
   if s3 GET "?list-type=2&prefix=turbolaunch/devices/" | grep -q '<KeyCount>2</KeyCount>'; then
     pass "this phone's file is in the bucket"
@@ -332,7 +338,7 @@ else
   expect_ui "Sync now reports an unreachable server" 'Sync failed'
 fi
 # Sync off again, so automatic syncs leave the bucket alone from here on.
-scroll_to 'resource-id="sync-enabled"' up
+scroll_to 'resource-id="sync-enabled"' up || true
 tap_on sync-enabled && sleep 1
 [ $live = 1 ] && s3_clear
 adb shell input keyevent KEYCODE_BACK

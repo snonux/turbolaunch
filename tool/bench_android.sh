@@ -25,13 +25,13 @@ out=build/bench-android
 rm -rf "$out" && mkdir -p "$out"
 runs=${RUNS:-5}
 
-# Limits, generous for a CI emulator with a software GPU; a regression past
-# one fails the run. Times in ms.
-limit_cold_home_ready=${LIMIT_COLD_HOME_READY:-2500}
-limit_warm_home=${LIMIT_WARM_HOME:-600}
+# Limits for the CI emulator (software GPU), from its measured numbers with
+# room for its noise; a regression past one fails the run. Times in ms.
+limit_cold_home_ready=${LIMIT_COLD_HOME_READY:-2000}
+limit_warm_home=${LIMIT_WARM_HOME:-200}
 limit_keystroke_p90=${LIMIT_KEYSTROKE_P90:-16}
-limit_launch_p90=${LIMIT_LAUNCH_P90:-50}
-limit_scroll_build_p90=${LIMIT_SCROLL_BUILD_P90:-8}
+limit_launch_p90=${LIMIT_LAUNCH_P90:-100}
+limit_scroll_build_p90=${LIMIT_SCROLL_BUILD_P90:-4}
 
 dump() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null && adb shell cat /sdcard/ui.xml >"$out/ui.xml"; }
 centre() {
@@ -95,8 +95,11 @@ for q in settings clock camera contacts chrome; do
   sleep 1.5
 done
 
-# Launch: search, Enter; then Home.
+# Launch: search, Enter; then Home. Clock is stopped first, so each launch
+# starts it and Android logs its "Displayed" time.
 for ((i = 0; i < runs; i++)); do
+  adb shell am force-stop com.google.android.deskclock
+  adb shell am force-stop com.android.deskclock
   tap_on search
   sleep 1
   adb shell input text clk
@@ -105,7 +108,7 @@ for ((i = 0; i < runs; i++)); do
   adb shell input keyevent KEYCODE_ENTER
   sleep 4
   log | nums 'bench launch: [0-9]*' | awk '{ print $1 / 1000 }' | record launch
-  log | python3 -c 'import re, sys; [print(int(s or 0) * 1000 + int(ms)) for s, ms in re.findall(r"Displayed \S+: \+(?:(\d+)s)?(\d+)ms", sys.stdin.read())]' | record launch_displayed
+  log | python3 -c 'import re, sys; [print(int(s or 0) * 1000 + int(ms)) for s, ms in re.findall(r"Displayed \S+[^+]*: \+(?:(\d+)s)?(\d+)ms", sys.stdin.read())]' | record launch_displayed
   adb shell input keyevent KEYCODE_HOME
   sleep 2
 done

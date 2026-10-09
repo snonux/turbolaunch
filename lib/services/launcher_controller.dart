@@ -125,9 +125,20 @@ class LauncherController extends ChangeNotifier {
 
   /// Results for the current query, best first. Hidden apps only show up
   /// when the query is exactly their name. Ties go to the more-launched app.
-  List<SearchResult> get results {
+  List<SearchResult> get results => _results ??= _search();
+
+  /// [results], kept until the query or anything else changes.
+  List<SearchResult>? _results;
+
+  @override
+  void notifyListeners() {
+    _results = null;
+    super.notifyListeners();
+  }
+
+  List<SearchResult> _search() {
     final q = _query.trim();
-    if (q.isEmpty) return [for (final a in drawer) SearchResult.app(a)];
+    if (q.isEmpty) return List.unmodifiable([for (final a in drawer) SearchResult.app(a)]);
     final folded = foldForSearch(q);
     final scored = <(int, int, SearchResult)>[];
     for (final a in _apps) {
@@ -149,7 +160,7 @@ class LauncherController extends ChangeNotifier {
       if (a.$2 != b.$2) return b.$2.compareTo(a.$2);
       return a.$3.title.toLowerCase().compareTo(b.$3.title.toLowerCase());
     });
-    return [for (final s in scored) s.$3];
+    return List.unmodifiable([for (final s in scored) s.$3]);
   }
 
   Future<void> refresh() async {

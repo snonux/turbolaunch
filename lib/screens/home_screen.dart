@@ -541,20 +541,23 @@ class _ResultTile extends StatelessWidget {
     final base = body.copyWith(fontSize: (body.fontSize ?? 16) * scale);
     final hit = base.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.primary);
     final title = result.title;
+    // One span per run of matched or unmatched letters, not per letter.
     final marked = result.positions.toSet();
+    final spans = <TextSpan>[];
+    for (var start = 0; start < title.length;) {
+      final hitRun = marked.contains(start);
+      var end = start + 1;
+      while (end < title.length && marked.contains(end) == hitRun) {
+        end++;
+      }
+      spans.add(TextSpan(text: title.substring(start, end), style: hitRun ? hit : base));
+      start = end;
+    }
     final owner = result.owner!;
     return ListTile(
       key: ValueKey(result.app != null ? owner.key : '${owner.key}:${result.shortcut!.id}'),
       leading: showIcon ? AppIcon(app: owner, cache: icons, size: result.shortcut == null ? 40 : 28) : null,
-      title: Text.rich(
-        TextSpan(
-          children: [
-            for (var i = 0; i < title.length; i++) TextSpan(text: title[i], style: marked.contains(i) ? hit : base),
-          ],
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
+      title: Text.rich(TextSpan(children: spans), maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: result.shortcut != null ? Text(owner.label) : null,
       trailing: owner.isPair
           ? const Icon(Icons.vertical_split_outlined, size: 18)

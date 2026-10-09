@@ -14,6 +14,8 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.Drawable
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraManager
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
@@ -118,6 +120,7 @@ class LauncherPlatformPlugin :
         channel?.setMethodCallHandler(null)
         eventChannel?.setStreamHandler(null)
         onCancel(null)
+        if (torchWatched) context.getSystemService(CameraManager::class.java).unregisterTorchCallback(torchCallback)
         worker.shutdown()
     }
 
@@ -198,6 +201,9 @@ class LauncherPlatformPlugin :
             "splitServiceEnabled" -> result.success(TurboLaunchAccessibilityService.instance() != null)
             "lockScreen" -> result.success(lockScreen())
             "expandNotifications" -> result.success(expandNotifications())
+            "expandQuickSettings" -> result.success(expandQuickSettings())
+            "globalAction" -> result.success(globalAction(call.argument<String>("name")))
+            "toggleFlashlight" -> result.success(toggleFlashlight())
             "saveTextFile" ->
                 saveTextFile(call.argument<String>("name") ?: "turbolaunch.json", call.argument<String>("content"), result)
             "openTextFile" -> openTextFile(result)
@@ -385,21 +391,99 @@ class LauncherPlatformPlugin :
      * have long used. That one may disappear in a future Android, so any failure
      * just returns false.
      */
+    private fun expandNotifications(): Boolean =
+        expandPanel(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS, "expandNotificationsPanel", "notifications")
+
+    /** Pulls down quick settings, the same way as [expandNotifications]. */
+    private fun expandQuickSettings(): Boolean =
+        expandPanel(AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS, "expandSettingsPanel", "quick settings")
+
     @Suppress("WrongConstant")
-    private fun expandNotifications(): Boolean {
+    private fun expandPanel(action: Int, statusBarMethod: String, what: String): Boolean {
         TurboLaunchAccessibilityService.instance()?.let {
-            if (it.performGlobalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)) {
-                Log.i(TAG, "notifications opened through the accessibility service")
+            if (it.performGlobalAction(action)) {
+                Log.i(TAG, "$what opened through the accessibility service")
                 return true
             }
         }
         return try {
             val statusBar = context.getSystemService("statusbar") ?: return false
-            statusBar.javaClass.getMethod("expandNotificationsPanel").invoke(statusBar)
-            Log.i(TAG, "notifications opened through the status bar")
+            statusBar.javaClass.getMethod(statusBarMethod).invoke(statusBar)
+            Log.i(TAG, "$what opened through the status bar")
             true
         } catch (e: Exception) {
-            Log.i(TAG, "notifications could not be opened: $e")
+            Log.i(TAG, "$what could not be opened: $e")
+            false
+        }
+    }
+
+    /** A swipe gesture's global action through the accessibility service; false when it is off. */
+    private fun globalAction(name: String?): Boolean {
+        val service = TurboLaunchAccessibilityService.instance() ?: return false
+        val action =
+            when (name) {
+                "recents" -> AccessibilityService.GLOBAL_ACTION_RECENTS
+                "powerMenu" -> AccessibilityService.GLOBAL_ACTION_POWER_DIALOG
+                "screenshot" ->
+                    if (Build.VERSION.SDK_INT >= 28) AccessibilityService.GLOBAL_ACTION_TAKE_SCREENSHOT else return false
+                "splitScreen" -> AccessibilityService.GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN
+                else -> return false
+            }
+        return service.performGlobalAction(action).also { Log.i(TAG, "global action $name: $it") }
+    }
+
+    // The flashlight's camera and state. The torch callback is registered on the
+    // first toggle, not at start, and reports the current state at once; that
+    // first report performs the toggle.
+    private var torchCamera: String? = null
+    private var torchOn = false
+    private var torchPending = false
+    private var torchWatched = false
+    private val torchCallback =
+        object : CameraManager.TorchCallback() {
+            override fun onTorchModeChanged(cameraId: String, enabled: Boolean) {
+                if (cameraId != torchCamera) return
+                torchOn = enabled
+                if (torchPending) {
+                    torchPending = false
+                    setTorch(!enabled)
+                }
+            }
+        }
+
+    /** Turns the flashlight on or off. Needs no permission; false without a flash. */
+    private fun toggleFlashlight(): Boolean {
+        val cameras = context.getSystemService(CameraManager::class.java) ?: return false
+        return try {
+            val id =
+                torchCamera
+                    ?: cameras.cameraIdList.firstOrNull {
+                        cameras.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+                    }
+                    ?: return false
+            torchCamera = id
+            if (!torchWatched) {
+                torchWatched = true
+                torchPending = true
+                cameras.registerTorchCallback(torchCallback, main)
+                true
+            } else {
+                setTorch(!torchOn)
+            }
+        } catch (e: Exception) {
+            Log.i(TAG, "flashlight: $e")
+            false
+        }
+    }
+
+    private fun setTorch(on: Boolean): Boolean {
+        val id = torchCamera ?: return false
+        return try {
+            context.getSystemService(CameraManager::class.java).setTorchMode(id, on)
+            Log.i(TAG, "flashlight ${if (on) "on" else "off"}")
+            true
+        } catch (e: Exception) {
+            Log.i(TAG, "flashlight: $e")
             false
         }
     }

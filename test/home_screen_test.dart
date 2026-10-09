@@ -291,15 +291,31 @@ void main() {
     expect(source.locks, 1);
   });
 
-  testWidgets('swipe down on home opens the notification shade, unless turned off', (tester) async {
+  /// Draws [moves] one after the other in a single touch, starting mid-grid.
+  Future<void> draw(WidgetTester tester, Finder on, List<Offset> moves) async {
+    final g = await tester.startGesture(tester.getCenter(on));
+    for (final m in moves) {
+      for (var i = 0; i < 10; i++) {
+        await g.moveBy(m / 10, timeStamp: const Duration(milliseconds: 40));
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+    }
+    await g.up();
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('swipe down on home opens the notification shade, unless set to nothing', (tester) async {
     await start(tester);
     await tester.fling(find.byKey(const Key('home-grid')), const Offset(0, 300), 1000);
     await tester.pumpAndSettle();
     expect(source.shades, 1);
 
     await openSettings(tester);
-    await scrollTo(tester, find.byKey(const Key('swipe-notifications')));
-    await tester.tap(find.byKey(const Key('swipe-notifications')));
+    await scrollTo(tester, find.byKey(const Key('gesture-D')));
+    expect(find.text('Notifications'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('gesture-D')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('action-none')));
     await tester.pumpAndSettle();
     await tester.pageBack();
     await tester.pumpAndSettle();
@@ -308,17 +324,100 @@ void main() {
     expect(source.shades, 1);
   });
 
-  testWidgets('a slow pull down far enough opens the shade too; short or upward drags do not', (tester) async {
+  testWidgets('settings from before gestures keep swipe down off', (tester) async {
+    await start(tester, {'settings': '{"swipeNotifications": false}'});
+    await tester.fling(find.byKey(const Key('home-grid')), const Offset(0, 300), 1000);
+    await tester.pumpAndSettle();
+    expect(source.shades, 0);
+  });
+
+  testWidgets('swipe up opens the search with the keyboard and the full list', (tester) async {
+    await start(tester);
+    await tester.fling(find.byKey(const Key('home-grid')), const Offset(0, -300), 1000);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byKey(const Key('search'))).focusNode!.hasFocus, isTrue);
+    expect(tester.testTextInput.isVisible, isTrue);
+    expect(find.byKey(const Key('app-list')), findsOneWidget);
+    expect(find.text('Maps'), findsOneWidget);
+  });
+
+  testWidgets('a slow pull down far enough opens the shade too; short drags do not', (tester) async {
     await start(tester);
     final grid = find.byKey(const Key('home-grid'));
     await tester.timedDrag(grid, const Offset(0, 20), const Duration(seconds: 1));
     await tester.pumpAndSettle();
-    await tester.timedDrag(grid, const Offset(0, -200), const Duration(seconds: 1));
+    await tester.timedDrag(grid, const Offset(30, 0), const Duration(seconds: 1));
     await tester.pumpAndSettle();
     expect(source.shades, 0);
     await tester.timedDrag(grid, const Offset(0, 200), const Duration(seconds: 2));
     await tester.pumpAndSettle();
     expect(source.shades, 1);
+  });
+
+  testWidgets('a recorded gesture opens the app picked for it; deleting it stops that', (tester) async {
+    await start(tester);
+    await openSettings(tester);
+    await scrollTo(tester, find.byKey(const Key('record-gesture')));
+    await tester.tap(find.byKey(const Key('record-gesture')));
+    await tester.pumpAndSettle();
+    final pad = find.byKey(const Key('gesture-pad'));
+    // A wobble is no gesture.
+    await draw(tester, pad, const [Offset(10, 5)]);
+    expect(find.text('Not a gesture: draw longer strokes'), findsOneWidget);
+    await draw(tester, pad, const [Offset(0, -150), Offset(150, 0)]);
+    expect(find.text('↑ →'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('use-gesture')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('action-launch')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('pick-org.example.maps/org.example.maps.Main#0')));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.byKey(const Key('gesture-UR')));
+    expect(find.text('Open Maps'), findsOneWidget);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    await draw(tester, find.byKey(const Key('home-grid')), const [Offset(0, -150), Offset(150, 0)]);
+    expect(source.launched.map((a) => a.label), ['Maps']);
+    expect(tester.widget<TextField>(find.byKey(const Key('search'))).focusNode!.hasFocus, isFalse);
+
+    await openSettings(tester);
+    await scrollTo(tester, find.byKey(const Key('delete-gesture-UR')));
+    await tester.tap(find.byKey(const Key('delete-gesture-UR')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('gesture-UR')), findsNothing);
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    // Maps now sits in a cell; draw from an empty one.
+    await draw(tester, find.byKey(const Key('empty-0-0')), const [Offset(0, -150), Offset(150, 0)]);
+    expect(source.launched, hasLength(1));
+  });
+
+  testWidgets('gesture actions: flashlight, shortcut, and service actions say when the service is off', (tester) async {
+    await start(tester, {
+      'settings':
+          '{"gestures": {"L": "flashlight", "R": "recents", "DR": "shortcut:org.example.maps|0|h", "LU": "quickSettings"}}',
+    });
+    final grid = find.byKey(const Key('home-grid'));
+    await tester.fling(grid, const Offset(-300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(source.flashlight, isTrue);
+    await tester.fling(grid, const Offset(300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(source.globalActions, isEmpty);
+    expect(find.textContaining('Recent apps needs TurboLaunch actions'), findsOneWidget);
+    source.serviceEnabled = true;
+    await tester.fling(grid, const Offset(300, 0), 1000);
+    await tester.pumpAndSettle();
+    expect(source.globalActions, ['recents']);
+    await draw(tester, grid, const [Offset(0, 150), Offset(150, 0)]);
+    expect(source.shortcutsStarted.map((s) => s.label), ['Navigate home']);
+    await draw(tester, grid, const [Offset(-150, 0), Offset(0, -150)]);
+    expect(source.quickSettings, 1);
+    // Swipe up is no longer set: these settings name only their own gestures.
+    await tester.fling(grid, const Offset(0, -300), 1000);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('app-list')), findsNothing);
   });
 
   testWidgets('the stats screen lists launch counts and home cells', (tester) async {

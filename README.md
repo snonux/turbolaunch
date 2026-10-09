@@ -25,7 +25,9 @@ feature with screenshots and a short recording.
 * Search box always on screen at the bottom; Home clears it
 * Long-press an app: remove from or add to home, hide, app info, uninstall
 * Clock, date and battery on top; long-press it to hide the grid (quick hide)
-* Double-tap empty home space to lock, swipe down for notifications
+* Double-tap empty home space to lock; swipe up to search, down for
+  notifications; set any swipe, or a gesture you draw, to open an app, the
+  flashlight, quick settings and more
 * App pairs: two apps side by side in split screen, searchable and on the
   grid like any app
 * A stats screen with launch counts and where each app sits

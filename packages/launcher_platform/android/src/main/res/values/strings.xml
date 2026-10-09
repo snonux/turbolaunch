@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="turbolaunch_accessibility_label">TurboLaunch actions</string>
-    <string name="turbolaunch_accessibility_description">Lets TurboLaunch lock the screen when you double-tap the home screen, pull down notifications, and open two apps in split screen for an app pair. It reads no screen content and sees nothing you type.</string>
+    <string name="turbolaunch_accessibility_description">Lets TurboLaunch lock the screen when you double-tap the home screen, pull down notifications or quick settings, open two apps in split screen for an app pair, and open recent apps, the power menu or take a screenshot when a swipe gesture you set up asks for it. It reads no screen content and sees nothing you type.</string>
 </resources>

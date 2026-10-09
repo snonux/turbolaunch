@@ -3,11 +3,13 @@ import 'package:launcher_platform/launcher_platform.dart';
 
 import '../services/app_source.dart';
 import '../services/app_version.dart';
+import '../services/gestures.dart';
 import '../services/launcher_controller.dart';
 import '../services/launcher_store.dart';
 import '../services/settings_backup.dart';
 import '../services/startup_timer.dart';
 import '../widgets/app_icon.dart';
+import 'gesture_settings.dart';
 import 'stats_screen.dart';
 
 /// Settings: the home app, cold start, stats, wallpapers, grid size, search,
@@ -44,6 +46,21 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   void _rebuild() => setState(() {});
 
   void _update(LauncherSettings s) => widget.controller.updateSettings(s);
+
+  /// Asks what the gesture [code] should do, and saves the answer.
+  Future<void> _setGesture(String code) async {
+    final action = await pickGestureAction(context, widget.controller, code);
+    if (action == null) return;
+    final s = widget.controller.settings;
+    _update(s.copyWith(gestures: {...s.gestures, code: action.encode()}));
+  }
+
+  Future<void> _recordGesture() async {
+    final code = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const GestureRecordScreen()));
+    if (code != null && mounted) await _setGesture(code);
+  }
 
   Widget _header(String title, TextTheme text) => Padding(
     padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -233,8 +250,9 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: Text(
-              'Locking, and opening app pairs side by side, need the opt-in TurboLaunch actions '
-              'accessibility service. It only performs those actions and reads nothing on screen.',
+              'Locking, opening app pairs side by side, and some gesture actions need the opt-in '
+              'TurboLaunch actions accessibility service. It only performs those actions and reads '
+              'nothing on screen. Gestures start on empty home space.',
             ),
           ),
           ListTile(
@@ -255,11 +273,36 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             value: s.doubleTapLock,
             onChanged: (v) => _update(s.copyWith(doubleTapLock: v)),
           ),
-          SwitchListTile(
-            key: const Key('swipe-notifications'),
-            title: const Text('Swipe down for notifications'),
-            value: s.swipeNotifications,
-            onChanged: (v) => _update(s.copyWith(swipeNotifications: v)),
+          for (final code in [
+            ...Gestures.basic,
+            ...s.gestures.keys.where((k) => !Gestures.basic.contains(k)).toList()..sort(),
+          ])
+            ListTile(
+              key: Key('gesture-$code'),
+              leading: SizedBox(
+                width: 48,
+                child: Text(Gestures.arrows(code), style: text.titleMedium, textAlign: TextAlign.center),
+              ),
+              title: Text(Gestures.name(code)),
+              subtitle: Text(
+                describeGestureAction(widget.controller, s.gestureAction(code), serviceOn: _serviceEnabled),
+              ),
+              onTap: () => _setGesture(code),
+              trailing: Gestures.basic.contains(code)
+                  ? null
+                  : IconButton(
+                      key: Key('delete-gesture-$code'),
+                      tooltip: 'Delete gesture',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _update(s.copyWith(gestures: {...s.gestures}..remove(code))),
+                    ),
+            ),
+          ListTile(
+            key: const Key('record-gesture'),
+            leading: const Icon(Icons.gesture),
+            title: const Text('Record a gesture'),
+            subtitle: const Text('Draw your own, like up then right, and pick what it does'),
+            onTap: _recordGesture,
           ),
           const Divider(),
           _header('Font sizes', text),

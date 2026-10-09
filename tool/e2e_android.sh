@@ -29,7 +29,8 @@ pass() { echo "PASS $1"; }
 fail() { echo "FAIL $1"; failed=1; }
 shot() { step=$((step + 1)); adb exec-out screencap -p >"$out/$(printf %02d $step)_$1.png"; }
 dump() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null && adb shell cat /sdcard/ui.xml >"$out/ui.xml"; }
-focused() { adb shell dumpsys window | grep -E 'mCurrentFocus|mFocusedApp' | head -2; }
+# The resumed activity; the window manager's focus went stale on CI once.
+focused() { adb shell dumpsys activity activities | grep -E 'topResumedActivity|mResumedActivity' | head -2; }
 # Centre of the first UI node whose text or content-desc contains $1.
 centre() {
   python3 - "$out/ui.xml" "$1" <<'PY'

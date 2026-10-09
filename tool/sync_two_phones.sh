@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Two phones syncing through the S3 test bucket: the running emulator is
-# phone A, and this starts a second emulator from the same AVD as phone B.
+# phone A, and this starts a second emulator as phone B.
 # Both get TurboLaunch fresh (app data cleared), launch different apps, and
 # sync from the Sync screen:
 #
@@ -11,8 +11,9 @@
 #   Both stats screens show 6 launches on all phones.
 #
 # Needs S3_TEST_ACCESS_KEY_ID and S3_TEST_SECRET_KEY (it skips without them),
-# and the emulator AVD the first emulator runs (AVD, default "test", as
-# reactivecircus/android-emulator-runner names it). tool/e2e_android.sh runs
+# and the first emulator's AVD (AVD, default "test", as
+# reactivecircus/android-emulator-runner names it), whose system image the
+# second AVD, phone-b, is made from. tool/e2e_android.sh runs
 # it at its end. Screenshots and UI dumps go to build/sync-two-phones/.
 #
 #   tool/sync_two_phones.sh apks/app-x86_64-release.apk
@@ -154,14 +155,27 @@ stats() { # expected text
 }
 cell() { dump; centre "$1"; } # where $1's cell is on the home screen
 
-# Phone B: a second emulator from the same AVD (read-only, so both can run).
-emulator=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}/emulator/emulator
-"$emulator" -avd "${AVD:-test}" -read-only -port 5556 -no-window -gpu swiftshader_indirect -noaudio \
+# Phone B: a second emulator, on an AVD of its own made from the first one's
+# system image (two emulators on one AVD never came up on CI).
+sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}
+avd_home=${ANDROID_AVD_HOME:-$HOME/.android/avd}
+image=$(sed -n 's/^image.sysdir.1=//p' "$avd_home/${AVD:-test}.avd/config.ini" | sed 's:/*$::; s:/:;:g')
+avdmanager=$sdk/cmdline-tools/latest/bin/avdmanager
+[ -x "$avdmanager" ] || avdmanager=avdmanager
+if ! echo no | "$avdmanager" create avd --force -n phone-b --package "$image" >"$out/avdmanager.log" 2>&1; then
+  fail "second AVD made from $image"; tail -20 "$out/avdmanager.log"; exit 1
+fi
+printf 'hw.cpu.ncore=2\n' >>"$avd_home/phone-b.avd/config.ini"
+"$sdk/emulator/emulator" -avd phone-b -port 5556 -no-window -gpu swiftshader_indirect -noaudio \
   -no-boot-anim -no-snapshot -no-metrics >"$out/emulator-b.log" 2>&1 &
 emulator_pid=$!
 trap 'adb -s $b emu kill >/dev/null 2>&1 || kill $emulator_pid 2>/dev/null || true' EXIT
-adb -s $b wait-for-device
-adb -s $b shell 'while [ "$(getprop sys.boot_completed)" != 1 ]; do sleep 2; done'
+if ! timeout 300 adb -s $b wait-for-device ||
+  ! timeout 300 adb -s $b shell 'while [ "$(getprop sys.boot_completed)" != 1 ]; do sleep 2; done'; then
+  fail "second emulator booted"
+  tail -30 "$out/emulator-b.log"
+  exit 1
+fi
 pass "second emulator booted"
 s3_clear
 

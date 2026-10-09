@@ -7,7 +7,8 @@
 # and home-ready times are logged (again after a restart), that a swipe down opens the notification shade, that settings sees
 # the accessibility service and shows the launch stats, and that a double-tap on
 # empty home space locks the phone. Screenshots, UI dumps and the log go to
-# build/e2e-android/; at the end tool/shots_android.sh takes the guide's
+# build/e2e-android/; at the end tool/bench_android.sh measures speed and
+# tool/shots_android.sh takes the guide's
 # screenshots into build/shots-android/.
 #
 #   tool/e2e_android.sh build/app/outputs/flutter-apk/app-x86_64-release.apk
@@ -214,6 +215,9 @@ timings "cold start again:"
 dump
 expect_ui "home again after the restart" 'resource-id="search"'
 
-# 12. Screenshots and a recording for the README, the guide and F-Droid.
+# 12. Benchmark: start, keystrokes, launches and scrolling, with limits.
+if tool/bench_android.sh; then pass "benchmark within its limits"; else fail "benchmark within its limits"; fi
+
+# 13. Screenshots and a recording for the README, the guide and F-Droid.
 if tool/shots_android.sh; then pass "screenshots taken"; else fail "screenshots taken"; fi
 exit $failed

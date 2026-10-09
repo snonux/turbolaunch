@@ -6,8 +6,8 @@ import 'package:turbolaunch/services/launcher_store.dart';
 
 /// A regression limit for search: a phone with 300 apps and 150 shortcuts,
 /// every keystroke of a few queries. The host is faster than a phone and
-/// shares its CPU with other jobs, so the limit is loose; a slip back to
-/// per-keystroke folding or string allocation in the scorer passes it.
+/// shares its CPU with other jobs, so the limit is loose: it catches search
+/// getting about ten times slower, not small drifts.
 void main() {
   test('search stays fast with 300 apps and 150 shortcuts', () async {
     const words = ['Maps', 'Notes', 'Music', 'Camera', 'Clock', 'Signal', 'Files', 'Photo', 'Mail', 'Organic'];

@@ -153,6 +153,11 @@ is random, made on first use and never exported.
 test bucket `turbolaunch-test`); the Android e2e does Sync now against it
 with the same variables, and without them only checks that Sync now
 reports an unreachable server.
+`tool/sync_two_phones.sh`, run at the end of the e2e, boots a second
+emulator (AVD `phone-b`, made from the first one's system image, port
+5556) and checks two phones end to end: the phone with fewer launches takes over the other's grid
+(same cells on screen), the other keeps its own and gets the new app in the
+shared cell, and both stats screens show the summed counts.
 
 ### App pairs
 

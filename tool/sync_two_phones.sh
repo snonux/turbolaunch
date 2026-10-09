@@ -159,7 +159,11 @@ cell() { dump; centre "$1"; } # where $1's cell is on the home screen
 # system image (two emulators on one AVD never came up on CI).
 sdk=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}
 avd_home=${ANDROID_AVD_HOME:-$HOME/.android/avd}
-image=$(sed -n 's/^image.sysdir.1=//p' "$avd_home/${AVD:-test}.avd/config.ini" | sed 's:/*$::; s:/:;:g')
+# The image dir from the first AVD's config.ini (written "key = value"), else
+# the first one installed; avdmanager wants it as system-images;android-34;...
+image=$(grep -ho 'system-images/[^[:space:]]*' "$avd_home/${AVD:-test}.avd/config.ini" "$avd_home/${AVD:-test}.ini" 2>/dev/null | head -1 || true)
+[ -n "$image" ] || image=$(cd "$sdk" && ls -d system-images/*/*/* | head -1)
+image=$(echo "$image" | sed 's:/*$::; s:/:;:g')
 avdmanager=$sdk/cmdline-tools/latest/bin/avdmanager
 [ -x "$avdmanager" ] || avdmanager=avdmanager
 if ! echo no | "$avdmanager" create avd --force -n phone-b --package "$image" >"$out/avdmanager.log" 2>&1; then

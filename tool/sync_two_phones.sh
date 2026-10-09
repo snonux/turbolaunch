@@ -191,7 +191,7 @@ launch clock 2
 dump; shot home
 settings_a=$(centre Settings) clock_a=$(centre Clock)
 [ -n "$settings_a" ] && [ -n "$clock_a" ] && pass "A: Settings and Clock on home" || fail "A: Settings and Clock on home"
-setup_sync "phone A"
+setup_sync phone-a
 sync_now 'Synced with no other phones yet'
 home
 
@@ -200,10 +200,10 @@ fresh
 launch camera 1
 dump; shot home
 expect_ui "B: Camera on home" Camera
-setup_sync "phone B"
+setup_sync phone-b
 sync_now 'Synced with 1 other phone'
-scroll_to 'phone A' down || true
-expect_ui "B: phone A listed" 'phone A'
+scroll_to phone-a down || true
+expect_ui "B: phone-a listed" phone-a
 home
 dump; shot home_synced
 settings_b=$(centre Settings) clock_b=$(centre Clock) camera_b=$(centre Camera)

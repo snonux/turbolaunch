@@ -12,7 +12,8 @@
 # empty home space locks the phone. Screenshots, UI dumps and the log go to
 # build/e2e-android/; at the end tool/bench_android.sh measures speed and
 # tool/shots_android.sh takes the guide's
-# screenshots into build/shots-android/.
+# screenshots into build/shots-android/, and tool/sync_two_phones.sh syncs a
+# second emulator with this one.
 #
 #   tool/e2e_android.sh build/app/outputs/flutter-apk/app-x86_64-release.apk
 set -euo pipefail
@@ -376,4 +377,8 @@ if tool/bench_android.sh; then pass "benchmark within its limits"; else fail "be
 
 # 13. Screenshots and a recording for the README, the guide and F-Droid.
 if tool/shots_android.sh; then pass "screenshots taken"; else fail "screenshots taken"; fi
+
+# 14. Two phones: a second emulator syncs with this one through the S3 test
+#     bucket (skipped without its keys). Last, as it clears the app's data.
+if tool/sync_two_phones.sh "$apk"; then pass "two phones sync"; else fail "two phones sync"; fi
 exit $failed

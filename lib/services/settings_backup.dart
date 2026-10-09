@@ -3,12 +3,14 @@ import 'dart:convert';
 import 'app_pairs.dart';
 import 'home_grid.dart';
 import 'launcher_store.dart';
+import 'sync.dart';
 
 /// Settings export and import, adapted from Quicklog's settings_backup.dart:
 /// one versioned, readable JSON file the user saves and opens through the
 /// system file dialogs. It carries the settings, hidden apps, apps removed
-/// from home, app pairs, launch counts and home cells, so a new phone starts
-/// with the same grid.
+/// from home, app pairs, launch counts, home cells and the sync settings
+/// (with the S3 keys, in plain text like Quicklog's), so a new phone starts
+/// with the same grid. The phone's sync id is never in it.
 
 /// Identifies a TurboLaunch export; matches the Android application id so a
 /// file from a sibling app (Quicklog) is recognised as foreign.
@@ -39,6 +41,7 @@ class LauncherBackup {
     this.pairs,
     this.launchCounts,
     this.homeSlots,
+    this.sync,
     this.exportedAt,
   });
 
@@ -48,6 +51,10 @@ class LauncherBackup {
   final List<AppPair>? pairs;
   final Map<String, int>? launchCounts;
   final Map<Cell, String>? homeSlots;
+  final SyncConfig? sync;
+
+  /// True when the file carries S3 keys in plain text.
+  bool get containsSecrets => (sync?.accessKeyId ?? '').isNotEmpty || (sync?.secretAccessKey ?? '').isNotEmpty;
 
   /// When the file was written, if it says so (informational only).
   final DateTime? exportedAt;
@@ -59,15 +66,20 @@ class LauncherBackup {
     pairs: store.pairs,
     launchCounts: store.counts,
     homeSlots: store.slots,
+    sync: store.syncConfig,
   );
 
-  /// Writes every section present in this backup into [store].
+  /// Writes every section present in this backup into [store]. With sync on,
+  /// the launch counts stay out: the bucket already has them, under the
+  /// phone that made them, and importing them too would count them twice.
   Future<void> applyTo(LauncherStore store) async {
+    if (sync != null) await store.setSyncConfig(sync!);
+    final syncOn = (sync ?? store.syncConfig).enabled;
     if (settings != null) await store.setSettings(settings!);
     if (hidden != null) await store.setHidden(hidden!);
     if (removedFromHome != null) await store.setExcluded(removedFromHome!);
     if (pairs != null) await store.setPairs(pairs!);
-    if (launchCounts != null) await store.setCounts(launchCounts!);
+    if (launchCounts != null && !syncOn) await store.setCounts(launchCounts!);
     if (homeSlots != null) await store.setSlots(homeSlots!);
   }
 }
@@ -84,14 +96,14 @@ String encodeSettingsBackup(LauncherBackup b, {required DateTime exportedAt}) {
     'format': kSettingsFormat,
     'formatVersion': kSettingsFormatVersion,
     'exportedAt': exportedAt.toUtc().toIso8601String(),
-    // S3 credentials join the file with sync in a later version.
-    'containsSecrets': false,
+    'containsSecrets': b.containsSecrets,
     'settings': ?b.settings?.toJson(),
     'hiddenApps': ?(b.hidden?.toList()?..sort()),
     'removedFromHome': ?(b.removedFromHome?.toList()?..sort()),
     'appPairs': ?b.pairs?.map((p) => p.toJson()).toList(),
     'launchCounts': ?b.launchCounts,
     'homeSlots': ?b.homeSlots?.map((c, k) => MapEntry(c.toString(), k)),
+    'sync': ?b.sync?.toJson(),
   };
   return '${const JsonEncoder.withIndent('  ').convert(doc)}\n';
 }
@@ -149,6 +161,7 @@ LauncherBackup decodeSettingsBackup(String text) {
       }
       return slots;
     }),
+    sync: _opt(doc, 'sync', (v) => v is Map ? SyncConfig.fromJson(v) : null),
     exportedAt: exportedAt is String ? DateTime.tryParse(exportedAt) : null,
   );
 }

@@ -6,7 +6,8 @@
 # the home grid, that the long-press menu and quick hide work, that cold start
 # and home-ready times are logged (again after a restart), that a swipe down opens the
 # notification shade, a swipe up the search, and a gesture recorded in settings
-# quick settings, that settings sees
+# quick settings, that Sync now works (against the Garage test bucket when
+# S3_TEST_ACCESS_KEY_ID and S3_TEST_SECRET_KEY are set), that settings sees
 # the accessibility service and shows the launch stats, and that a double-tap on
 # empty home space locks the phone. Screenshots, UI dumps and the log go to
 # build/e2e-android/; at the end tool/bench_android.sh measures speed and
@@ -248,6 +249,103 @@ fi
 adb shell cmd statusbar collapse
 sleep 2
 expect_focus "quick settings closed, home again" "$app"
+
+# 9e. Sync. Sync now without keys asks for them. With S3_TEST_ACCESS_KEY_ID
+#     and S3_TEST_SECRET_KEY set (CI secrets for the Garage test bucket), a
+#     real sync that finds a second phone's file put there beforehand;
+#     without them, Sync now against a closed port must say it failed.
+s3_bucket_url="${S3_TEST_ENDPOINT:-https://garage.f3s.buetow.org}/${S3_TEST_BUCKET:-turbolaunch-test}"
+s3() { # method path [file]: one signed request to the test bucket
+  curl -sS --fail-with-body --aws-sigv4 "aws:amz:garage:s3" --user "$S3_TEST_ACCESS_KEY_ID:$S3_TEST_SECRET_KEY" \
+    -X "$1" "$s3_bucket_url/$2" ${3:+-T "$3"}
+}
+s3_clear() {
+  for key in $(s3 GET "?list-type=2&prefix=turbolaunch/devices/" | grep -o '<Key>[^<]*</Key>' | sed 's/<[^>]*>//g'); do
+    s3 DELETE "$key" >/dev/null
+  done
+}
+hide_keyboard() { if adb shell dumpsys input_method | grep -q 'mInputShown=true'; then adb shell input keyevent KEYCODE_BACK; sleep 1; fi; }
+type_into() { # resource-id text: finds the field above or below, types into it
+  scroll_to "resource-id=\"$1\"" down || scroll_to "resource-id=\"$1\"" up || true
+  tap_on "$1" && sleep 1 && adb shell input text "$2"
+  sleep 1
+}
+scroll_to() { # text, direction up|down
+  dump
+  for _ in 1 2 3 4 5 6; do
+    grep -q -- "$1" "$out/ui.xml" && return 0
+    if [ "$2" = down ]; then
+      adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300
+    else
+      adb shell input swipe $((w / 2)) $((h / 4)) $((w / 2)) $((h * 3 / 4)) 300
+    fi
+    sleep 1; dump
+  done
+  grep -q -- "$1" "$out/ui.xml"
+}
+live=0
+[ -n "${S3_TEST_ACCESS_KEY_ID:-}" ] && [ -n "${S3_TEST_SECRET_KEY:-}" ] && live=1
+if [ $live = 1 ]; then
+  s3_clear
+  printf '{"format":"turbolaunch-sync","formatVersion":1,"device":"e2e-other","name":"e2e other phone","counts":{"e2e.fake/e2e.fake.Main":1},"cells":{}}' >"$out/other.json"
+  s3 PUT turbolaunch/devices/e2e-other.json "$out/other.json" >/dev/null && pass "second phone's file put in the bucket" || fail "second phone's file put in the bucket"
+else
+  echo "  S3_TEST_ACCESS_KEY_ID or S3_TEST_SECRET_KEY not set: no real sync, only the error path"
+fi
+tap_on "TurboLaunch settings" && sleep 3
+tap_on "Share launch counts" && sleep 2
+dump; shot sync
+expect_ui "sync screen open" 'Sync between phones'
+tap_on sync-enabled && sleep 1
+scroll_to 'resource-id="sync-now"' down || true
+tap_on sync-now && sleep 3
+scroll_to 'Enter the access key ID' down || true; shot sync_no_keys
+expect_ui "Sync now without keys asks for them" 'Enter the access key ID'
+scroll_to 'resource-id="sync-endpoint"' up || true
+if [ $live = 1 ]; then
+  type_into sync-endpoint "${S3_TEST_ENDPOINT:-https://garage.f3s.buetow.org}"
+  hide_keyboard
+  type_into sync-bucket "${S3_TEST_BUCKET:-turbolaunch-test}"
+  hide_keyboard
+  type_into sync-key-id "$S3_TEST_ACCESS_KEY_ID"
+  hide_keyboard
+  type_into sync-secret "$S3_TEST_SECRET_KEY"
+else
+  type_into sync-endpoint "http://127.0.0.1:9"
+  hide_keyboard
+  type_into sync-key-id "e2e"
+  hide_keyboard
+  type_into sync-secret "e2e"
+fi
+hide_keyboard
+scroll_to 'resource-id="sync-name"' down || true
+type_into sync-name "e2e"
+hide_keyboard
+scroll_to 'resource-id="sync-now"' down || true
+tap_on sync-now && sleep 15
+if [ $live = 1 ]; then scroll_to 'Synced with' down || true; else scroll_to 'Sync failed' down || true; fi
+shot sync_done
+if [ $live = 1 ]; then
+  expect_ui "Sync now syncs with the second phone" 'Synced with 1 other phone'
+  scroll_to 'e2e other phone' down || true
+  expect_ui "second phone listed" 'e2e other phone'
+  if s3 GET "?list-type=2&prefix=turbolaunch/devices/" | grep -q '<KeyCount>2</KeyCount>'; then
+    pass "this phone's file is in the bucket"
+  else
+    fail "this phone's file is in the bucket"
+  fi
+else
+  expect_ui "Sync now reports an unreachable server" 'Sync failed'
+fi
+# Sync off again, so automatic syncs leave the bucket alone from here on.
+scroll_to 'resource-id="sync-enabled"' up || true
+tap_on sync-enabled && sleep 1
+[ $live = 1 ] && s3_clear
+adb shell input keyevent KEYCODE_BACK
+sleep 1
+adb shell input keyevent KEYCODE_BACK
+sleep 2; dump
+expect_ui "Back returns home from sync" 'resource-id="search"'
 
 # 10. No crash anywhere.
 adb logcat -d >"$out/logcat.txt"

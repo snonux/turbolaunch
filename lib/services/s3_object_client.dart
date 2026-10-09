@@ -1,0 +1,158 @@
+import 'dart:typed_data';
+
+import 'package:minio/minio.dart';
+
+import 's3_config.dart';
+
+/// Copied from Quicklog's lib/services/s3_object_client.dart.
+///
+/// Low-level path-style S3 object ops used by the sync ([SyncService]).
+///
+/// Production uses [MinioS3ObjectClient]. Tests inject their own
+/// implementation so CI never needs a live Garage.
+abstract class S3ObjectClient {
+  Future<void> putObject(String key, List<int> bytes, {String contentType});
+  Future<List<int>> getObject(String key);
+  Future<void> deleteObject(String key);
+
+  /// Object keys under [prefix] (caller filters further if needed).
+  Future<List<String>> listKeys({String prefix = ''});
+}
+
+/// Absent object key.
+///
+/// Test fakes throw this. Production Minio reports the same condition as
+/// [MinioS3Error] with code `NoSuchKey`. [isMissingObjectError] accepts both
+/// and nothing else — a message that merely contains the words is not a miss.
+class S3MissingObjectError implements Exception {
+  const S3MissingObjectError(this.key);
+
+  final String key;
+
+  @override
+  String toString() => 'S3MissingObjectError: $key';
+}
+
+/// True only for an absent object: [S3MissingObjectError], or [MinioS3Error]
+/// whose code is `NoSuchKey`. Not a wrong bucket, not a generic 404 / NotFound,
+/// and not a string that happens to mention NoSuchKey.
+///
+/// Quicklog's S3NoteStore may skip its degrade hook for these on **read** only: a missing
+/// key is a normal miss. [NoSuchBucket], transport errors, and the same codes
+/// on create/list/probe must still call Quicklog's S3NoteStore's onFailure.
+bool isMissingObjectError(Object error) {
+  if (error is S3MissingObjectError) return true;
+  if (error is MinioS3Error) return error.error?.code == 'NoSuchKey';
+  return false;
+}
+
+/// Saved [S3Config] values no client can be built from (malformed endpoint,
+/// host or port Minio rejects, invalid bucket name). Raised only while
+/// constructing [MinioS3ObjectClient], never by network I/O, so callers can
+/// tell a settings mistake from an outage.
+class S3ConfigException implements Exception {
+  const S3ConfigException(this.message);
+
+  /// User-facing reason, without an exception type prefix.
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
+/// Minio client forced to path-style against [S3Config] (Garage-friendly).
+///
+/// Throws [S3ConfigException] when [config] cannot back a client.
+class MinioS3ObjectClient implements S3ObjectClient {
+  MinioS3ObjectClient(this.config, {Minio? minio})
+    : _minio = minio ?? _validated(() => _minioFor(config)),
+      _bucket = _validated(() {
+        MinioInvalidBucketNameError.check(config.bucket);
+        return config.bucket;
+      });
+
+  final S3Config config;
+  final Minio _minio;
+  final String _bucket;
+
+  /// Why [config] cannot back a client, or null when it can.
+  ///
+  /// Runs the constructor's own checks ([S3Config.host], Minio's
+  /// endpoint/port validation, the bucket name) without any network I/O,
+  /// so bad settings can be rejected before they are saved or used.
+  static String? configError(S3Config config) {
+    try {
+      MinioS3ObjectClient(config);
+      return null;
+    } on S3ConfigException catch (e) {
+      return e.message;
+    }
+  }
+
+  /// Why saved or about-to-be-saved settings would be refused, or null.
+  ///
+  /// The one validation rule shared by Save/Export in Preferences, settings
+  /// import and the drain CLI: [config] is judged as it will be read back
+  /// ([S3Config.normalized]) by [configError]. Nothing is checked when
+  /// [usesS3] is false, so settings the storage mode ignores never block.
+  static String? settingsError(S3Config config, {bool usesS3 = true}) =>
+      usesS3 ? configError(config.normalized()) : null;
+
+  static Minio _minioFor(S3Config config) => Minio(
+    endPoint: config.host,
+    port: config.port,
+    useSSL: config.useSSL,
+    accessKey: config.accessKeyId,
+    secretKey: config.secretAccessKey,
+    region: config.region,
+    pathStyle: true,
+  );
+
+  /// Runs a construction-time check, mapping its validation errors (and
+  /// only those) to [S3ConfigException].
+  static T _validated<T>(T Function() build) {
+    try {
+      return build();
+    } on FormatException catch (e) {
+      throw S3ConfigException(e.message);
+    } on MinioError catch (e) {
+      throw S3ConfigException(e.message ?? e.toString());
+    }
+  }
+
+  @override
+  Future<void> putObject(String key, List<int> bytes, {String contentType = 'application/json'}) async {
+    final data = Uint8List.fromList(bytes);
+    await _minio.putObject(
+      _bucket,
+      key,
+      Stream<Uint8List>.value(data),
+      size: data.length,
+      metadata: {'content-type': contentType},
+    );
+  }
+
+  @override
+  Future<List<int>> getObject(String key) async {
+    final stream = await _minio.getObject(_bucket, key);
+    final builder = BytesBuilder(copy: false);
+    await for (final chunk in stream) {
+      builder.add(chunk);
+    }
+    return builder.takeBytes();
+  }
+
+  @override
+  Future<void> deleteObject(String key) async {
+    await _minio.removeObject(_bucket, key);
+  }
+
+  @override
+  Future<List<String>> listKeys({String prefix = ''}) async {
+    final result = await _minio.listAllObjects(_bucket, prefix: prefix, recursive: true);
+    return [
+      for (final o in result.objects)
+        if (o.key != null && o.key!.isNotEmpty) o.key!,
+    ];
+  }
+}

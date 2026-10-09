@@ -4,8 +4,7 @@ import '../services/launcher_controller.dart';
 import '../widgets/app_icon.dart';
 
 /// Launch counts per app, most-launched first, with each app's home cell, so
-/// the grid's order explains itself. Counts are this phone's; sync adds
-/// other phones' later.
+/// the grid's order explains itself. With sync, counts are every phone's.
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key, required this.controller, required this.icons});
 
@@ -19,6 +18,8 @@ class StatsScreen extends StatelessWidget {
       builder: (context, _) {
         final stats = controller.stats;
         final total = stats.fold(0, (sum, s) => sum + s.launches);
+        final here = stats.fold(0, (sum, s) => sum + s.here);
+        final synced = controller.otherPhones.isNotEmpty;
         final rows = controller.rows;
         return Scaffold(
           appBar: AppBar(title: const Text('Launch stats')),
@@ -29,7 +30,9 @@ class StatsScreen extends StatelessWidget {
                   children: [
                     ListTile(
                       key: const Key('stats-total'),
-                      title: Text('$total launches on this phone'),
+                      title: Text(
+                        synced ? '$total launches on all phones, $here here' : '$total launches on this phone',
+                      ),
                       subtitle: const Text(
                         'Free home cells go to the most-launched apps; a placed app keeps its cell.',
                       ),
@@ -41,7 +44,12 @@ class StatsScreen extends StatelessWidget {
                         title: Text(s.app.label),
                         // Rows count from the bottom, where the grid starts filling.
                         subtitle: Text(
-                          s.cell == null ? 'Not on home' : 'Home row ${rows - s.cell!.row}, column ${s.cell!.col + 1}',
+                          [
+                            s.cell == null
+                                ? 'Not on home'
+                                : 'Home row ${rows - s.cell!.row}, column ${s.cell!.col + 1}',
+                            if (synced) '${s.here} here',
+                          ].join(', '),
                         ),
                         trailing: Text('${s.launches}', style: Theme.of(context).textTheme.titleMedium),
                       ),

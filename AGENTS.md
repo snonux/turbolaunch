@@ -39,14 +39,16 @@ rejects 25+).
 | --- | --- |
 | `lib/main.dart` | Starts the app with the Android app source |
 | `lib/services/app_source.dart` | `AppEntry`, the `AppSource` interface, its Android and fake implementations |
-| `lib/services/launcher_controller.dart` | App list and pairs, search results, launch counts, stats, the grid, settings, export and import, Home presses |
+| `lib/services/launcher_controller.dart` | App list and pairs, search results, launch counts, stats, the grid, settings, export and import, Home presses, sync runs |
 | `lib/services/app_pairs.dart` | `AppPair`: a saved pair is an app of its own, keyed `pair:<first>\|<second>` |
 | `lib/services/settings_backup.dart` | The export file format (adapted from Quicklog's), validated before anything is written |
 | `lib/services/fuzzy.dart` | The fzf-style scorer (greedy, word starts and runs score higher) |
 | `lib/services/gestures.dart` | Swipe gestures: the stroke recognizer and the actions a gesture can run |
 | `lib/services/home_grid.dart` | Pure placement rules for the home grid and the automatic grid size |
 | `lib/services/launcher_store.dart` | Settings and state in SharedPreferences |
-| `lib/screens/` | Home screen (clock line, grid, results, search box, gestures), settings, stats |
+| `lib/services/sync.dart` | S3 sync: the per-phone file, sync keys, shared cells |
+| `lib/services/s3_config.dart`, `s3_object_client.dart` | Copied from Quicklog (only the default bucket differs); keep them in step |
+| `lib/screens/` | Home screen (clock line, grid, results, search box, gestures), settings, stats, sync |
 | `packages/launcher_platform/` | Kotlin plugin: LauncherApps, icons and their disk cache, launching, package, profile and Home events, file dialogs, the accessibility service |
 
 ### Home grid rules
@@ -122,6 +124,35 @@ What keeps it fast, and should stay that way:
   calls need no binder call to find the app again. An icon's cache stamp is
   its APK's file time (no binder call); a new system build empties the
   icon cache.
+
+### S3 sync
+
+Quicklog's S3 client (`minio`, path-style, plain objects, no encryption of
+our own). Each phone writes `turbolaunch/devices/<device id>.json` with its
+own launch counts and home cells, and reads the others; nothing is merged
+into one shared file, so phones never overwrite each other. The device id
+is random, made on first use and never exported.
+
+* Apps are matched across phones by sync key: the app key without the user
+  serial, plus `#work` for another profile; pairs map both halves.
+* Cells in the file count rows from the bottom.
+* Counts are summed (`totals`); `counts` stays this phone's own.
+* The first sync that finds other phones takes over the grid of the phone
+  with the most launches, if that is another one (Paul, 2026-10-09). After
+  that `placeHome` keeps placed icons; an unplaced app goes to its shared
+  cell (the busiest phone wins disagreements) and a shared cell whose app is
+  missing is lent and given back on install.
+* Automatic syncs (5 s after start, 30 s after a launch, on Home after
+  15 min) fail silently; only Sync now shows errors.
+* With sync on, an import leaves the launch counts out (they would count
+  twice).
+
+`test/sync_test.dart` covers this with an in-memory bucket.
+`test/s3_live_test.dart` runs three phones against a real bucket when
+`S3_TEST_ACCESS_KEY_ID` and `S3_TEST_SECRET_KEY` are set (Paul's Garage
+test bucket `turbolaunch-test`); the Android e2e does Sync now against it
+with the same variables, and without them only checks that Sync now
+reports an unreachable server.
 
 ### App pairs
 
@@ -223,7 +254,7 @@ From the plan, one PR per phase:
 3. **Profiles and polish** (done): work profile and multi-user, icon cache, settings
    export and import, stats screen, double-tap to lock, swipe for
    notifications, app pairs.
-4. **Release** (this): first tag through snonux/fdroid, README and usage guide with
+4. **Release** (done): first tag through snonux/fdroid, README and usage guide with
    screenshots and GIFs, fdroiddata merge request.
-5. **S3 sync**: Quicklog's S3 client and retry code, per-device files,
-   merged launch counts and shared cells.
+5. **S3 sync** (this): Quicklog's S3 client, per-device files, summed
+   launch counts and shared cells.

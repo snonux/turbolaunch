@@ -16,6 +16,7 @@ dependencies:
   shared_preferences: ^2.3.2
   launcher_platform:
     path: packages/launcher_platform
+  minio: ^3.5.8
 
 dev_dependencies:
   flutter_test:

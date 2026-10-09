@@ -16,8 +16,9 @@ emulator's own.
 9. [Settings](#settings)
 10. [Launch stats](#launch-stats)
 11. [Moving to a new phone](#moving-to-a-new-phone)
-12. [Privacy and permissions](#privacy-and-permissions)
-13. [Building it yourself](#building-it-yourself)
+12. [Sync between phones](#sync-between-phones)
+13. [Privacy and permissions](#privacy-and-permissions)
+14. [Building it yourself](#building-it-yourself)
 
 ## Installing
 
@@ -196,14 +197,50 @@ to the new phone and use **Import settings** there. Android's own file
 dialogs do the saving and opening, so TurboLaunch needs no storage
 permission.
 
-Import replaces what is on the phone; it asks first.
+Import replaces what is on the phone; it asks first. The file also holds
+the sync settings, S3 keys included, in plain text, so keep it somewhere
+private. With sync on, the launch counts in the file are left out: the
+bucket has them already, under the phone that made them.
+
+## Sync between phones
+
+**Settings, Sync** shares launch counts and home cells between your phones
+through an S3 bucket of your own (Garage, MinIO, AWS S3 and others; it
+uses the same client and settings as Quicklog). Fill in the endpoint,
+bucket, access key ID and secret key, give the phone a name, switch
+**Sync between phones** on and tap **Sync now**.
+
+* Every phone writes one file of its own, `turbolaunch/devices/<id>.json`,
+  and reads the others. Nothing a phone writes is ever overwritten by
+  another.
+* Launch counts add up across phones. The stats screen shows the total and
+  how many launches were on this phone.
+* The first time a phone meets your other phones, it takes over the grid of
+  the phone with the most launches (if that is another phone). Its own apps
+  that are not in that grid get the free cells, most-launched first.
+* After that, a placed icon never moves. An app that gets a cell later goes
+  to the cell it has on your other phones, if that cell is free here.
+* A cell kept for an app this phone does not have is lent to another app,
+  and given back when you install the app.
+* Rows count from the bottom, so phones with more or fewer rows still agree
+  on the cells nearest the search box. Small differences between phones are
+  normal.
+* TurboLaunch syncs a few seconds after it starts, half a minute after a
+  launch, and on Home when it has not synced for 15 minutes. These
+  automatic syncs fail silently, for example when the server is down;
+  **Sync now** shows what went wrong.
+* Files are plain JSON, without encryption of their own: use a bucket only
+  you can read.
 
 ## Privacy and permissions
 
-TurboLaunch has no internet permission, no tracking, no ads and no Google
-Play Services. Everything stays on the phone.
+TurboLaunch has no tracking, no ads and no Google Play Services.
+Everything stays on the phone unless you turn on sync, which talks only to
+the S3 server you enter.
 
 It asks for:
+
+* **Internet**, for the optional sync. Nothing goes out while sync is off.
 
 * **Set wallpaper**, for the wallpaper setting.
 * **Request uninstall**, so the menu can ask Android to uninstall an app

@@ -13,11 +13,11 @@ Press Home, type two or three letters, hit Enter, and the app opens.
 * Home and lock screen wallpapers, grid size and font sizes
 * Work profile apps included
 * Export and import of settings, pairs and the home grid as one file
+* Optional sync of launch counts and home cells between your phones through your own S3 bucket
 * No tracking, no ads, no Google Play Services
 
 Permissions and features you should know about:
 
 * Accessibility service (optional, off by default): TurboLaunch actions only locks the screen on a double-tap, pulls down notifications and switches into split screen for an app pair. It reads no screen content and sees nothing you type.
 * Expand status bar: a swipe down on the home screen opens the notification shade. Without the accessibility service this uses a hidden Android call that home apps have long relied on; if a future Android removes it, the swipe simply does nothing.
-
-TurboLaunch is in early development. Coming next: optional sync of launch counts and home cells to your own S3 bucket.
+* Internet: used only for the optional sync, and only to the S3 server you enter. Nothing goes out while sync is off.

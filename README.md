@@ -4,8 +4,8 @@
 
 A small, search-first home screen for Android, made for GrapheneOS. Press
 Home, type two or three letters, hit Enter, and the app opens. No tracking,
-no Google Play Services; the only network use will be optional sync to your
-own S3 bucket.
+no Google Play Services; the only network use is optional sync to your own
+S3 bucket.
 
 **[Read the guide](docs/guide/README.md)**: installing, then every
 feature with screenshots and a short recording.
@@ -34,6 +34,8 @@ feature with screenshots and a short recording.
 * Home and lock screen wallpapers, grid size and three font sizes in settings
 * Work profile apps included, with a badge (greyed while work apps are paused)
 * Export and import of everything as one JSON file, for a new phone
+* Optional sync of launch counts and home cells between your phones through
+  your own S3 bucket (Garage, MinIO, AWS)
 
 ## Install
 

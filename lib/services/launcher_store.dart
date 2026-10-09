@@ -6,6 +6,7 @@ import 'app_pairs.dart';
 import 'app_source.dart';
 import 'gestures.dart';
 import 'home_grid.dart';
+import 'sync.dart';
 
 /// User settings, all with defaults that work without any setup.
 class LauncherSettings {
@@ -121,7 +122,7 @@ class LauncherSettings {
 
 /// Everything TurboLaunch remembers, on the device in SharedPreferences:
 /// launch counts, home cells, apps removed from the grid, hidden apps, app
-/// pairs and the settings. Later phases sync some of it through S3.
+/// pairs, the settings, and the sync settings and what the last sync brought.
 class LauncherStore {
   LauncherStore(this._prefs);
 
@@ -137,6 +138,12 @@ class LauncherStore {
   static const _quickHide = 'quickHide';
   static const _pairs = 'appPairs';
   static const _appSnapshot = 'appSnapshot';
+  static const _sync = 'syncConfig';
+  static const _deviceId = 'syncDeviceId';
+  static const _remote = 'syncRemote';
+  static const _lent = 'syncLent';
+  static const _lastSync = 'syncLast';
+  static const _met = 'syncMetOthers';
 
   Map<String, Object?> _json(String key) {
     final raw = _prefs.getString(key);
@@ -217,6 +224,49 @@ class LauncherStore {
     if (_prefs.getString(_appSnapshot) == json) return Future.value();
     return _prefs.setString(_appSnapshot, json);
   }
+
+  SyncConfig get syncConfig => SyncConfig.fromJson(_json(_sync));
+  Future<void> setSyncConfig(SyncConfig v) => _prefs.setString(_sync, jsonEncode(v.toJson()));
+
+  /// This phone's id in the bucket, made on first use. Never exported, so a
+  /// phone set up from another's export still writes a file of its own.
+  String get deviceId {
+    final id = _prefs.getString(_deviceId);
+    if (id != null && id.isNotEmpty) return id;
+    final made = newDeviceId();
+    _prefs.setString(_deviceId, made);
+    return made;
+  }
+
+  /// The other phones' files as the last sync read them.
+  List<DeviceSync> get remote {
+    final raw = _prefs.getString(_remote);
+    if (raw == null) return const [];
+    try {
+      final v = jsonDecode(raw);
+      return v is List ? [for (final d in v.map(DeviceSync.fromJson)) ?d] : const [];
+    } on FormatException {
+      return const [];
+    }
+  }
+
+  Future<void> setRemote(List<DeviceSync> v) => _prefs.setString(_remote, jsonEncode([for (final d in v) d.toJson()]));
+
+  /// Cells lent to a local app, with the sync key of the app they are kept for.
+  Map<Cell, String> get lent => {
+    for (final e in _json(_lent).entries)
+      if (Cell.parse(e.key) != null && e.value is String) Cell.parse(e.key)!: e.value as String,
+  };
+
+  Future<void> setLent(Map<Cell, String> v) =>
+      _prefs.setString(_lent, jsonEncode({for (final e in v.entries) e.key.toString(): e.value}));
+
+  DateTime? get lastSync => DateTime.tryParse(_prefs.getString(_lastSync) ?? '');
+  Future<void> setLastSync(DateTime v) => _prefs.setString(_lastSync, v.toUtc().toIso8601String());
+
+  /// Whether a sync has found other phones yet; the first that does may take over their grid.
+  bool get metOtherPhones => _prefs.getBool(_met) ?? false;
+  Future<void> setMetOtherPhones(bool v) => _prefs.setBool(_met, v);
 
   bool get quickHide => _prefs.getBool(_quickHide) ?? false;
   Future<void> setQuickHide(bool v) => _prefs.setBool(_quickHide, v);

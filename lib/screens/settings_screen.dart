@@ -11,8 +11,9 @@ import '../services/startup_timer.dart';
 import '../widgets/app_icon.dart';
 import 'gesture_settings.dart';
 import 'stats_screen.dart';
+import 'sync_screen.dart';
 
-/// Settings: the home app, cold start, stats, wallpapers, grid size, search,
+/// Settings: the home app, cold start, stats, sync, wallpapers, grid size, search,
 /// gestures, font sizes, app pairs, hidden apps, export and import, and the version.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.controller, required this.icons});
@@ -90,7 +91,10 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Import settings?'),
-        content: const Text('The file replaces your settings, hidden apps, app pairs, launch counts and home grid.'),
+        content: const Text(
+          'The file replaces your settings, hidden apps, app pairs, launch counts, home grid and sync settings. '
+          'With sync on, launch counts come from the other phones instead.',
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           FilledButton(
@@ -190,6 +194,19 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
                 builder: (_) => StatsScreen(controller: widget.controller, icons: widget.icons),
               ),
             ),
+          ),
+          ListTile(
+            key: const Key('open-sync'),
+            leading: const Icon(Icons.sync),
+            title: const Text('Sync'),
+            subtitle: Text(
+              widget.controller.syncConfig.enabled
+                  ? 'On, ${widget.controller.otherPhones.length} other phones'
+                  : 'Share launch counts and home cells between phones',
+            ),
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute<void>(builder: (_) => SyncScreen(controller: widget.controller))),
           ),
           const Divider(),
           _header('Wallpaper', text),
@@ -418,7 +435,9 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             key: const Key('export-settings'),
             leading: const Icon(Icons.upload_file_outlined),
             title: const Text('Export settings'),
-            subtitle: const Text('Settings, pairs, hidden apps, launch counts and the grid, as one JSON file'),
+            subtitle: const Text(
+              'Settings, pairs, hidden apps, launch counts, the grid and the sync keys, as one JSON file',
+            ),
             onTap: _export,
           ),
           ListTile(

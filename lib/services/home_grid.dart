@@ -4,7 +4,9 @@
 /// uninstalling the app, removing it by long-press, or shrinking the grid
 /// below its cell frees it. Free cells go to the most-launched apps without a
 /// cell, filled from the bottom row up (nearest the search box and the thumb),
-/// left to right.
+/// left to right. With sync, an app goes to the cell it has on the other
+/// phones when that cell is free, and a cell kept for an app this phone lacks
+/// is lent until the app is installed.
 library;
 
 class Cell implements Comparable<Cell> {
@@ -41,13 +43,7 @@ List<Cell> fillOrder(int rows, int cols) => [
     for (var c = 0; c < cols; c++) Cell(r, c),
 ];
 
-/// Returns the new placement.
-///
-/// [slots] is the current placement (cell to app key). Placements whose app is
-/// not in [installed], is in [excluded] (hidden, or removed from the grid by
-/// the user), or whose cell lies outside the grid are dropped. Then free cells
-/// are filled with apps from [installed] that have a launch count above zero,
-/// most-launched first, ties broken by key so every phone agrees.
+/// Returns the new placement; see [placeHome].
 Map<Cell, String> placeApps({
   required Map<Cell, String> slots,
   required int rows,
@@ -55,14 +51,51 @@ Map<Cell, String> placeApps({
   required Set<String> installed,
   required Map<String, int> counts,
   Set<String> excluded = const {},
+}) => placeHome(slots: slots, rows: rows, cols: cols, installed: installed, counts: counts, excluded: excluded).slots;
+
+/// Returns the new placement and the cells lent out.
+///
+/// [slots] is the current placement (cell to app key). Placements whose app is
+/// not in [installed], is in [excluded] (hidden, or removed from the grid by
+/// the user), or whose cell lies outside the grid are dropped. Then free cells
+/// are filled with apps from [installed] that have a launch count above zero,
+/// most-launched first, ties broken by key so every phone agrees.
+///
+/// [shared] is where the other phones have their apps (see sync.dart). An
+/// unplaced app goes to its shared cell when that is free; other apps skip
+/// cells kept for such an app. A free cell whose shared app is not installed
+/// here is lent to a local app and noted in the returned `lent` (cell to
+/// owner). [lent] is that from the last pass: once the owner is installed,
+/// it takes its cell back and the borrower is placed again like any app.
+({Map<Cell, String> slots, Map<Cell, String> lent}) placeHome({
+  required Map<Cell, String> slots,
+  required int rows,
+  required int cols,
+  required Set<String> installed,
+  required Map<String, int> counts,
+  Set<String> excluded = const {},
+  Map<Cell, String> shared = const {},
+  Map<Cell, String> lent = const {},
 }) {
+  bool inGrid(Cell c) => c.row < rows && c.col < cols;
   final result = <Cell, String>{};
   for (final e in slots.entries) {
     final c = e.key;
-    if (c.row >= rows || c.col >= cols) continue;
+    if (!inGrid(c)) continue;
     if (!installed.contains(e.value) || excluded.contains(e.value)) continue;
     if (result.containsValue(e.value)) continue;
     result[c] = e.value;
+  }
+  final stillLent = <Cell, String>{};
+  for (final e in lent.entries) {
+    final cell = e.key, owner = e.value;
+    // The other phones moved on: the borrower keeps the cell as its own.
+    if (!inGrid(cell) || shared[cell] != owner) continue;
+    if (!installed.contains(owner)) {
+      if (result.containsKey(cell)) stillLent[cell] = owner;
+    } else if (!excluded.contains(owner) && !result.containsValue(owner)) {
+      result[cell] = owner;
+    }
   }
   final placed = result.values.toSet();
   final candidates =
@@ -71,13 +104,33 @@ Map<Cell, String> placeApps({
           final byCount = (counts[b] ?? 0).compareTo(counts[a] ?? 0);
           return byCount != 0 ? byCount : a.compareTo(b);
         });
+  final waiting = candidates.toSet();
+  final kept = <String, Cell>{
+    for (final e in shared.entries)
+      if (inGrid(e.key) && !result.containsKey(e.key) && waiting.contains(e.value)) e.value: e.key,
+  };
+  final keptCells = kept.values.toSet();
+  final order = fillOrder(rows, cols);
   var next = 0;
-  for (final cell in fillOrder(rows, cols)) {
-    if (next >= candidates.length) break;
-    if (result.containsKey(cell)) continue;
-    result[cell] = candidates[next++];
+  for (final key in candidates) {
+    final own = kept[key];
+    if (own != null) {
+      result[own] = key;
+      continue;
+    }
+    while (next < order.length && (result.containsKey(order[next]) || keptCells.contains(order[next]))) {
+      next++;
+    }
+    if (next == order.length) {
+      if (kept.isEmpty) break;
+      continue;
+    }
+    final cell = order[next++];
+    result[cell] = key;
+    final owner = shared[cell];
+    if (owner != null && !installed.contains(owner)) stillLent[cell] = owner;
   }
-  return result;
+  return (slots: result, lent: stillLent);
 }
 
 /// Places [key] in the first free cell in fill order, if there is one.

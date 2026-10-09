@@ -20,13 +20,17 @@ class Bench {
   }
 
   /// A keystroke in the search box: logs the time until the frame with its
-  /// results is built (search, layout and paint on the UI thread).
+  /// results is built, and the part of it spent building that frame
+  /// (search, layout and paint on the UI thread). The rest is the wait for
+  /// the screen's next refresh.
   static void keystroke() {
     if (!_on) return;
     final watch = Stopwatch()..start();
-    SchedulerBinding.instance.ensureVisualUpdate();
+    var begin = 0;
+    SchedulerBinding.instance.scheduleFrameCallback((_) => begin = watch.elapsedMicroseconds);
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      debugPrint('TurboLaunch bench keystroke: ${watch.elapsedMicroseconds} us');
+      final end = watch.elapsedMicroseconds;
+      debugPrint('TurboLaunch bench keystroke: $end us, frame ${end - begin} us');
     });
   }
 

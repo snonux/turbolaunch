@@ -8,7 +8,8 @@
 #                with the home grid ("home ready"), and Android's TotalTime
 #   warm Home    Home pressed while another app is in front (TotalTime)
 #   keystroke    a letter typed in the search box to the frame with its
-#                results built
+#                results built, and the time spent building that frame (the
+#                rest is the wait for the screen's next refresh)
 #   launch       Enter to the call that starts the app returning, and
 #                Android's "Displayed" time of the app that opened
 #   scroll       frame build and raster times while flinging the app list
@@ -29,7 +30,8 @@ runs=${RUNS:-5}
 # room for its noise; a regression past one fails the run. Times in ms.
 limit_cold_home_ready=${LIMIT_COLD_HOME_READY:-2000}
 limit_warm_home=${LIMIT_WARM_HOME:-200}
-limit_keystroke_p90=${LIMIT_KEYSTROKE_P90:-16}
+limit_keystroke_p90=${LIMIT_KEYSTROKE_P90:-33}
+limit_keystroke_frame_p90=${LIMIT_KEYSTROKE_FRAME_P90:-10}
 limit_launch_p90=${LIMIT_LAUNCH_P90:-100}
 limit_scroll_build_p90=${LIMIT_SCROLL_BUILD_P90:-4}
 
@@ -91,6 +93,7 @@ for q in settings clock camera contacts chrome; do
   for ((i = 0; i < ${#q}; i++)); do adb shell input text "${q:i:1}"; sleep 0.3; done
   sleep 0.5
   log | nums 'bench keystroke: [0-9]*' | awk '{ print $1 / 1000 }' | record keystroke
+  log | nums 'bench keystroke: [0-9]* us, frame [0-9]*' | awk '{ print $1 / 1000 }' | record keystroke_frame
   adb shell input keyevent KEYCODE_HOME
   sleep 1.5
 done
@@ -144,7 +147,8 @@ rows = [
     ("Cold start to home grid", "cold_home_ready", "p50", $limit_cold_home_ready),
     ("Cold start, Android TotalTime", "cold_total", None, None),
     ("Home with an app in front", "warm_home", "p50", $limit_warm_home),
-    ("Search keystroke to frame", "keystroke", "p90", $limit_keystroke_p90),
+    ("Search keystroke to frame built", "keystroke", "p90", $limit_keystroke_p90),
+    ("Building that frame", "keystroke_frame", "p90", $limit_keystroke_frame_p90),
     ("Enter to app start call", "launch", "p90", $limit_launch_p90),
     ("Launched app displayed", "launch_displayed", None, None),
     ("Scroll frame build", "scroll_build", "p90", $limit_scroll_build_p90),

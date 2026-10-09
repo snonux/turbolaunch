@@ -6,6 +6,7 @@ import 'package:launcher_platform/launcher_platform.dart';
 
 import 'app_pairs.dart';
 import 'app_source.dart';
+import 'bench.dart';
 import 'fuzzy.dart';
 import 'home_grid.dart';
 import 'launcher_store.dart';
@@ -247,6 +248,7 @@ class LauncherController extends ChangeNotifier {
   /// Launches [app] (both apps of a pair), counts the launch, and clears the search.
   Future<bool> launch(AppEntry app) async {
     final pair = app.pair;
+    final watch = Bench.launchStarted();
     final bool ok;
     if (pair != null) {
       final first = appByKey(pair.first), second = appByKey(pair.second);
@@ -254,6 +256,7 @@ class LauncherController extends ChangeNotifier {
     } else {
       ok = await source.launch(app);
     }
+    Bench.launchDone(watch);
     if (!ok) return false;
     _counts[app.key] = (_counts[app.key] ?? 0) + 1;
     store.setCounts(_counts);

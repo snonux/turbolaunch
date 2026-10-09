@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'screens/home_screen.dart';
 import 'services/app_source.dart';
 import 'services/launcher_controller.dart';
+import 'services/bench.dart';
 import 'services/launcher_store.dart';
 import 'services/startup_timer.dart';
 import 'widgets/app_icon.dart';
@@ -13,6 +14,7 @@ Future<void> main() async {
   final store = await LauncherStore.open();
   runApp(TurboLaunchApp(source: source, store: store));
   StartupTimer.measureAfterFirstFrame(source);
+  Bench.init(source);
 }
 
 class TurboLaunchApp extends StatefulWidget {

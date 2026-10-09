@@ -69,6 +69,10 @@ class LauncherPlatform {
   /// it measures cold start.
   Future<int> startupMillis() async => await _channel.invokeMethod<int>('startupMillis') ?? -1;
 
+  /// Whether benchmark logging was switched on with
+  /// `adb shell setprop debug.turbolaunch.bench 1` before the app started.
+  Future<bool> benchMode() async => await _channel.invokeMethod<bool>('benchMode') ?? false;
+
   /// Whether the user enabled TurboLaunch's accessibility service.
   Future<bool> splitServiceEnabled() async => await _channel.invokeMethod<bool>('splitServiceEnabled') ?? false;
 

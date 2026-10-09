@@ -86,6 +86,9 @@ abstract class AppSource {
 
   /// Milliseconds from process start to now, or -1 where unknown.
   Future<int> startupMillis();
+
+  /// Whether to log benchmark timings (tool/bench_android.sh turns it on).
+  Future<bool> benchMode();
   Future<bool> splitServiceEnabled();
 
   /// Locks the phone; false when the accessibility service is off.
@@ -145,6 +148,9 @@ class PlatformAppSource implements AppSource {
 
   @override
   Future<int> startupMillis() => _platform.startupMillis();
+
+  @override
+  Future<bool> benchMode() => _platform.benchMode();
 
   @override
   Future<bool> splitServiceEnabled() => _platform.splitServiceEnabled();
@@ -240,6 +246,9 @@ class FakeAppSource implements AppSource {
 
   @override
   Future<int> startupMillis() async => -1;
+
+  @override
+  Future<bool> benchMode() async => false;
 
   @override
   Future<bool> splitServiceEnabled() async => serviceEnabled;

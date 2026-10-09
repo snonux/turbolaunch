@@ -194,6 +194,7 @@ class LauncherPlatformPlugin :
             "appInfo" -> result.success(appInfo(call.key()))
             "startupMillis" ->
                 result.success(SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime())
+            "benchMode" -> result.success(benchMode())
             "splitServiceEnabled" -> result.success(TurboLaunchAccessibilityService.instance() != null)
             "lockScreen" -> result.success(lockScreen())
             "expandNotifications" -> result.success(expandNotifications())
@@ -597,5 +598,17 @@ class LauncherPlatformPlugin :
         const val WALLPAPER_REQUEST = 0x7a11
         const val SAVE_FILE_REQUEST = 0x7a12
         const val OPEN_FILE_REQUEST = 0x7a13
+    }
+
+    /**
+     * True when `adb shell setprop debug.turbolaunch.bench 1` was run before
+     * the app started: tool/bench_android.sh then reads timings from the log.
+     */
+    private fun benchMode(): Boolean = try {
+        Class.forName("android.os.SystemProperties")
+            .getMethod("get", String::class.java)
+            .invoke(null, "debug.turbolaunch.bench") == "1"
+    } catch (e: Exception) {
+        false
     }
 }

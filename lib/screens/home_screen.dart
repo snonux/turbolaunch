@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/app_source.dart';
+import '../services/bench.dart';
 import '../services/home_grid.dart';
 import '../services/launcher_controller.dart';
 import '../widgets/app_icon.dart';
@@ -261,7 +262,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 autocorrect: false,
                 enableSuggestions: false,
                 textInputAction: TextInputAction.go,
-                onChanged: (v) => _c.query = v,
+                onChanged: (v) {
+                  Bench.keystroke();
+                  _c.query = v;
+                },
                 onSubmitted: (_) {
                   _focus.unfocus();
                   _c.launchTopMatch();

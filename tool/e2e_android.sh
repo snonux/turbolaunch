@@ -6,7 +6,7 @@
 # the home grid, that the long-press menu and quick hide work, that cold start
 # and home-ready times are logged (again after a restart), that a swipe down opens the
 # notification shade, a swipe up the search, and a gesture recorded in settings
-# quick settings, that Sync now works (against the Garage test bucket when
+# quick settings, that the Screenshot tile shoots the open app, that Sync now works (against the Garage test bucket when
 # S3_TEST_ACCESS_KEY_ID and S3_TEST_SECRET_KEY are set), that settings sees
 # the accessibility service and shows the launch stats, and that a double-tap on
 # empty home space locks the phone. Screenshots, UI dumps and the log go to
@@ -251,6 +251,30 @@ fi
 adb shell cmd statusbar collapse
 sleep 2
 expect_focus "quick settings closed, home again" "$app"
+
+# 9f. The Screenshot tile in quick settings shoots whatever app is open:
+#     add the tile, open Settings, click the tile and look for a new file.
+tile="$app/$app.ScreenshotTileService"
+adb shell cmd statusbar add-tile "$tile"
+adb shell cmd statusbar expand-settings
+sleep 2; shot tile_in_quick_settings; dump
+expect_ui "Screenshot tile in quick settings" 'Screenshot'
+adb shell cmd statusbar collapse
+shots_now() { adb shell 'ls /sdcard/Pictures/Screenshots /sdcard/DCIM/Screenshots 2>/dev/null' | grep -c '\.png' || true; }
+before=$(shots_now)
+adb shell am start -a android.settings.SETTINGS >/dev/null
+sleep 3
+adb shell cmd statusbar click-tile "$tile"
+sleep 5; shot tile_screenshot_taken
+if [ "$(shots_now)" -gt "$before" ]; then
+  pass "Screenshot tile shoots the open app"
+else
+  fail "Screenshot tile shoots the open app ($before screenshots before, $(shots_now) after)"
+  adb logcat -d | grep 'TurboLaunch' | tail -5
+fi
+adb shell input keyevent KEYCODE_HOME
+sleep 3
+expect_focus "home again after the screenshot" "$app"
 
 # 9e. Sync. Sync now without keys asks for them. With S3_TEST_ACCESS_KEY_ID
 #     and S3_TEST_SECRET_KEY set (CI secrets for the Garage test bucket), a

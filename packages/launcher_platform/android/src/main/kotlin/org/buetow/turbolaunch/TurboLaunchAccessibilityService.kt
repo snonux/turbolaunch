@@ -7,8 +7,8 @@ import java.lang.ref.WeakReference
 /**
  * Opt-in service that only performs global actions: split screen for app
  * pairs, lock screen, the notification shade and quick settings, and the
- * recent apps, power menu and screenshot a swipe gesture can ask for. It
- * ignores every accessibility event.
+ * recent apps, power menu and screenshot a swipe gesture or the
+ * [ScreenshotTileService] can ask for. It ignores every accessibility event.
  */
 class TurboLaunchAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {

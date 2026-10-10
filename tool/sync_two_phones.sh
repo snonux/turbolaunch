@@ -238,15 +238,18 @@ fi
 stats '6 launches on all phones, 5 here'
 
 # Within the hour after a sync, launching and pressing Home do not sync again.
-bucket_sum() {
-  for key in $(s3 GET "?list-type=2&prefix=turbolaunch/devices/" | grep -o '<Key>[^<]*</Key>' | sed 's/<[^>]*>//g'); do
-    s3 GET "$key"
-  done | md5sum
+# The phones' files, one after the other; empty when the bucket cannot be read.
+bucket_files() {
+  local list key
+  list=$(s3 GET "?list-type=2&prefix=turbolaunch/devices/") || return 0
+  for key in $(echo "$list" | grep -o '<Key>[^<]*</Key>' | sed 's/<[^>]*>//g'); do
+    s3 GET "$key" || return 0
+  done
 }
-before=$(bucket_sum)
+before=$(bucket_files)
 launch clock 1
 adb shell input keyevent KEYCODE_HOME; sleep 8
-if [ "$(bucket_sum)" = "$before" ]; then
+if [ -n "$before" ] && [ "$(bucket_files)" = "$before" ]; then
   pass "A: no second sync within the hour"
 else
   fail "A: no second sync within the hour (the bucket changed)"

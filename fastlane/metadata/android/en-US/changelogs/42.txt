@@ -1,0 +1,1 @@
+Sync runs less often: at most once an hour, only when you use the home screen (Home or coming back to it), never in the background; a failed sync is retried an hour later. A warning on the home screen after a week without a sync. Sync now still syncs at once.

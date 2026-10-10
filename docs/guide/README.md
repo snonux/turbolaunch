@@ -258,10 +258,13 @@ when they last synced.
 * Rows count from the bottom, so phones with more or fewer rows still agree
   on the cells nearest the search box. Small differences between phones are
   normal.
-* TurboLaunch syncs a few seconds after it starts, half a minute after a
-  launch, and on Home when it has not synced for 15 minutes. These
-  automatic syncs fail silently, for example when the server is down;
-  **Sync now** shows what went wrong.
+* TurboLaunch syncs by itself at most once an hour, and only when you use
+  the home screen: when you press Home or come back to it. Nothing syncs in
+  the background. These automatic syncs fail silently, for example when the
+  server is down, and the next one is an hour later; **Sync now** syncs at
+  once and shows what went wrong.
+* When sync is on but has not worked for a week, a red line on the home
+  screen asks you to check it; tap it to open the sync settings.
 * Files are plain JSON, without encryption of their own: use a bucket only
   you can read.
 

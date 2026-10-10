@@ -92,6 +92,13 @@ class LauncherController extends ChangeNotifier {
     }
     _lent = store.lent;
     _lastSync = store.lastSync;
+    _lastAttempt = store.lastSyncAttempt;
+    _syncSince = store.syncSince;
+    // Sync switched on before the warning existed: the week starts now.
+    if (_sync.enabled && _syncSince == null) {
+      _syncSince = _clock();
+      store.setSyncSince(_syncSince!);
+    }
     _totals = null;
   }
 
@@ -138,8 +145,8 @@ class LauncherController extends ChangeNotifier {
   late Map<Cell, String> _lent;
   DateTime? _lastSync;
   DateTime? _lastAttempt;
+  DateTime? _syncSince;
   Future<void>? _syncing;
-  Timer? _syncTimer;
 
   /// Sync keys of the installed apps and pairs, and back.
   Map<String, String> _syncKeys = const {};
@@ -150,6 +157,10 @@ class LauncherController extends ChangeNotifier {
 
   /// Whether the home screen is in front; see [setInFront].
   bool _inFront = false;
+
+  /// Whether it has been in front since the start, so a start is not taken
+  /// for someone coming back to it.
+  bool _seenInFront = false;
 
   /// An arrangement by launches waits for the home screen to be left.
   bool _arrangePending = false;
@@ -281,14 +292,11 @@ class LauncherController extends ChangeNotifier {
 
   Future<void> refresh() async {
     final apps = await source.listApps();
-    final first = !_loaded || _lastAttempt == null;
     _setInstalled(apps);
     store.setAppSnapshot(_installed);
     _loaded = true;
     _place();
     notifyListeners();
-    // A sync once the home is up, out of the way of the start.
-    if (first) _scheduleSync(const Duration(seconds: 5));
     // Shortcuts only matter once someone types, so the apps do not wait for them.
     try {
       _shortcuts = List.unmodifiable(await source.shortcuts());
@@ -385,7 +393,11 @@ class LauncherController extends ChangeNotifier {
   /// it runs when the home screen is left, or on a Home press.
   void setInFront(bool front) {
     if (front == _inFront) return;
+    final back = front && _seenInFront;
     _inFront = front;
+    _seenInFront = _seenInFront || front;
+    // Coming back to the home screen is someone using the phone.
+    if (back) _syncIfDue();
     if (!front && _arrangePending) {
       _place(now: true);
       notifyListeners();
@@ -507,7 +519,6 @@ class LauncherController extends ChangeNotifier {
     _query = '';
     _place();
     notifyListeners();
-    _scheduleSync(const Duration(seconds: 30));
     return true;
   }
 
@@ -616,16 +627,38 @@ class LauncherController extends ChangeNotifier {
   }
 
   void updateSyncConfig(SyncConfig c) {
+    if (c.enabled && !_sync.enabled) {
+      _syncSince = _clock();
+      store.setSyncSince(_syncSince!);
+    }
     _sync = c;
     store.setSyncConfig(c);
     notifyListeners();
   }
 
-  /// Syncs [delay] from now, unless sync is off; a later call moves it.
-  void _scheduleSync(Duration delay) {
-    if (!_sync.ready) return;
-    _syncTimer?.cancel();
-    _syncTimer = Timer(delay, () => sync().ignore());
+  /// Automatic syncs run at most this often, and a failed one is retried
+  /// after this long.
+  static const syncInterval = Duration(hours: 1);
+
+  /// With no sync for this long, the home screen asks to check sync.
+  static const syncWarnAfter = Duration(days: 7);
+
+  /// Sync is on but has not worked for [syncWarnAfter].
+  bool get syncOverdue {
+    if (!_sync.enabled) return false;
+    final since = _lastSync ?? _syncSince;
+    return since != null && _clock().difference(since) > syncWarnAfter;
+  }
+
+  /// An automatic sync, run only when someone uses the home screen (a Home
+  /// press, or coming back to it) and at most once per [syncInterval], counted
+  /// from the last attempt, so a failed one waits as long. Nothing syncs on a
+  /// timer or in the background.
+  void _syncIfDue() {
+    if (!_sync.ready || !_loaded || _lastRows == 0) return;
+    final last = _lastAttempt;
+    if (last != null && _clock().difference(last) < syncInterval) return;
+    sync().ignore();
   }
 
   /// "Sync now": like [sync], but throws [SyncException] when it fails.
@@ -635,7 +668,6 @@ class LauncherController extends ChangeNotifier {
   /// fails silently (the server may simply be down); an [explicit] one
   /// throws [SyncException].
   Future<void> sync({bool explicit = false}) async {
-    _syncTimer?.cancel();
     final running = _syncing;
     if (running != null) {
       try {
@@ -662,6 +694,7 @@ class LauncherController extends ChangeNotifier {
 
   Future<void> _syncOnce() async {
     _lastAttempt = _clock();
+    await store.setLastSyncAttempt(_lastAttempt!);
     if (!_sync.enabled) throw const SyncException('Sync is off.');
     final config = _sync.s3;
     if (!config.hasCredentials) throw const SyncException('Enter the access key ID and the secret key.');
@@ -792,16 +825,12 @@ class LauncherController extends ChangeNotifier {
         homePresses++;
         if (_arrangePending) _place(now: true);
         notifyListeners();
-        final last = _lastAttempt;
-        if (last == null || _clock().difference(last) > const Duration(minutes: 15)) {
-          _scheduleSync(const Duration(seconds: 1));
-        }
+        _syncIfDue();
     }
   }
 
   @override
   void dispose() {
-    _syncTimer?.cancel();
     _subscription.cancel();
     super.dispose();
   }

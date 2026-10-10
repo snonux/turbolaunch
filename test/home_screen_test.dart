@@ -76,6 +76,21 @@ void main() {
     expect(find.text('Maps'), findsNothing, reason: 'never-launched apps get no cell');
   });
 
+  testWidgets('a week without a sync shows a warning that opens the sync screen', (tester) async {
+    final since = DateTime.now().subtract(const Duration(days: 8)).toUtc().toIso8601String();
+    await start(tester, {'syncConfig': '{"enabled": true}', 'syncSince': since});
+    expect(find.byKey(const Key('sync-warning')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('sync-warning')));
+    await tester.pumpAndSettle();
+    expect(find.text('Sync between phones'), findsOneWidget);
+  });
+
+  testWidgets('no sync warning while sync is off', (tester) async {
+    final since = DateTime.now().subtract(const Duration(days: 8)).toUtc().toIso8601String();
+    await start(tester, {'syncSince': since});
+    expect(find.byKey(const Key('sync-warning')), findsNothing);
+  });
+
   testWidgets('settings can show the battery on the clock line', (tester) async {
     await start(tester);
     expect(find.text('87%'), findsNothing);

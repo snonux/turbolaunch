@@ -127,6 +127,64 @@ void main() {
     expect(c.grid, {const Cell(1, 0): music, const Cell(1, 1): cal}, reason: 'Music keeps its cell');
   });
 
+  group('rotating the screen and back keeps the grid', () {
+    Future<void> launchAll() async {
+      var times = 1;
+      for (final a in [...c.apps]) {
+        for (var i = 0; i < times; i++) {
+          await c.launch(a);
+        }
+        times++;
+      }
+    }
+
+    test('arranged by launches, with the home screen in front', () async {
+      c.setAutoGridSize(3, 2);
+      await launchAll();
+      c.setInFront(false);
+      c.setInFront(true);
+      final before = c.grid;
+      expect(before, hasLength(5));
+      c.setAutoGridSize(1, 4);
+      expect(c.grid, hasLength(4), reason: 'the new size is arranged at once');
+      expect(c.grid.containsKey(const Cell(0, 3)), isTrue, reason: 'the most launched app bottom right');
+      c.setAutoGridSize(3, 2);
+      expect(c.grid, before);
+      // A launch in landscape waits for the home screen to be left.
+      c.setAutoGridSize(1, 4);
+      await c.launch(c.apps.first);
+      c.setAutoGridSize(3, 2);
+      expect(c.grid, before);
+    });
+
+    test('with arranging off', () async {
+      c.updateSettings(c.settings.copyWith(autoArrange: false));
+      c.setAutoGridSize(3, 2);
+      await launchAll();
+      final before = c.grid;
+      expect(before, hasLength(5));
+      c.setAutoGridSize(1, 4);
+      expect(c.grid, hasLength(4));
+      c.setAutoGridSize(3, 2);
+      expect(c.grid, before);
+    });
+
+    test('across a restart', () async {
+      c.setAutoGridSize(3, 2);
+      await launchAll();
+      c.setInFront(true);
+      final before = c.grid;
+      c.setAutoGridSize(1, 4);
+      final prefs = await SharedPreferences.getInstance();
+      final saved = {for (final k in prefs.getKeys()) k: prefs.get(k)!};
+      final again = await start(saved);
+      again.setInFront(true);
+      again.setAutoGridSize(3, 2);
+      expect(again.grid, before);
+      again.dispose();
+    });
+  });
+
   test('cells, counts and hidden apps survive a restart', () async {
     final music = c.apps.firstWhere((a) => a.label == 'Music');
     await c.launch(music);

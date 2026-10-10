@@ -3,7 +3,8 @@
 # installs it, makes it the home app, and checks through the UI that the
 # search box lists the device's apps, that a fuzzy search and Enter launch the
 # top match, that Home returns with the search cleared and the launched app on
-# the home grid, that the long-press menu and quick hide work, that cold start
+# the home grid and keeps its cells through a turn to landscape and back,
+# that the long-press menu and quick hide work, that cold start
 # and home-ready times are logged (again after a restart), that a swipe down opens the
 # notification shade, a swipe up the search, and a gesture recorded in settings
 # quick settings, that the Screenshot tile shoots the open app, that Sync now works (against the Garage test bucket when
@@ -168,6 +169,24 @@ if [ -n "${cx:-}" ] && [ -n "${sx:-}" ] && [ "$cx" -gt $((w * 3 / 4)) ] && [ "$s
   pass "Clock took the corner, Settings left of it"
 else
   fail "Clock took the corner, Settings left of it (Clock ${cx:-?},${cy:-?}; Settings ${sx:-?},${sy:-?})"
+fi
+
+# 5c. Rotating to landscape and back keeps the grid: both apps show in
+#     landscape, and back in portrait each is in the cell it had.
+adb shell settings put system accelerometer_rotation 0
+adb shell settings put system user_rotation 1
+sleep 3; dump; shot landscape
+if grep -q 'Clock' "$out/ui.xml" && grep -q 'Settings' "$out/ui.xml"; then
+  pass "landscape shows the grid"
+else
+  fail "landscape shows the grid"
+fi
+adb shell settings put system user_rotation 0
+sleep 3; dump; shot portrait_again
+if [ "$(centre "Clock") $(centre "Settings")" = "$cx $cy $sx $sy" ]; then
+  pass "rotating back keeps the cells"
+else
+  fail "rotating back keeps the cells (Clock $(centre "Clock"), Settings $(centre "Settings"); before $cx,$cy $sx,$sy)"
 fi
 
 # 6. Long-press menu: remove from home.

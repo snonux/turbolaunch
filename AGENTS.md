@@ -72,6 +72,12 @@ per 80 dp and one row per 96 dp (more with bigger labels); settings can
 override either. The grid ignores the size while the keyboard is open, so
 typing never cuts cells.
 
+Each grid size keeps its own cells (`homeLayouts`, by `rowsxcols`):
+rotating the screen changes the size, and turning back brings back that
+size's cells as they were. A size the grid never had is arranged afresh.
+"Add to home", an import, taking over another phone's grid and turning
+"Arrange by launches" on or off forget the other sizes' cells.
+
 Apps are identified everywhere by the key `package/activity#userSerial`.
 User serials survive reboots, user handles do not; later phases store launch
 counts and home slots under this key.

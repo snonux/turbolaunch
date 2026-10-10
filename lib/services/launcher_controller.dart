@@ -91,6 +91,10 @@ class LauncherController extends ChangeNotifier {
       store.clearLegacyLent();
     }
     _lent = store.lent;
+    _layoutSize = store.layoutSize;
+    _layouts = {
+      for (final e in store.layouts.entries) e.key: (slots: e.value.slots, lent: e.value.lent, ghosts: const {}),
+    };
     _lastSync = store.lastSync;
     _lastAttempt = store.lastSyncAttempt;
     _syncSince = store.syncSince;
@@ -173,6 +177,12 @@ class LauncherController extends ChangeNotifier {
   String _query = '';
   bool _loaded = false;
   int _rows = 0, _cols = 0;
+
+  /// The grid size [_slots] is for, `rowsxcols`, and the cells of the other
+  /// sizes the grid had. Rotating the screen changes the size; turning it
+  /// back brings back the cells of that size as they were.
+  String? _layoutSize;
+  late Map<String, ({Map<Cell, String> slots, Map<Cell, String> lent, Map<Cell, String> ghosts})> _layouts;
 
   /// Bumped on every Home press, so the UI can drop focus and the keyboard.
   int homePresses = 0;
@@ -383,9 +393,47 @@ class LauncherController extends ChangeNotifier {
     if (rows == _rows && cols == _cols) return;
     _rows = rows;
     _cols = cols;
-    if (rows > 0) _lastRows = rows;
+    if (rows > 0) {
+      _lastRows = rows;
+      _switchLayout('${rows}x$cols');
+    }
     _place();
     notifyListeners();
+  }
+
+  /// Keeps the cells of the size the grid had and brings back those of
+  /// [size], if it had that size before. A size the grid never had is
+  /// arranged afresh, by launches when that is on.
+  void _switchLayout(String size) {
+    final from = _layoutSize;
+    if (from == size) return;
+    _layoutSize = size;
+    store.setLayoutSize(size);
+    if (from == null) return;
+    _layouts = {..._layouts, from: (slots: _slots, lent: _lent, ghosts: _ghosts)};
+    final back = _layouts.remove(size);
+    if (back != null) {
+      _slots = back.slots;
+      _lent = back.lent;
+      _ghosts = back.ghosts;
+      store.setSlots(_slots);
+      store.setLent(_lent);
+    } else {
+      _ghosts = const {};
+      if (_settings.autoArrange) _arrangeNow = true;
+    }
+    _saveLayouts();
+  }
+
+  void _saveLayouts() =>
+      store.setLayouts({for (final e in _layouts.entries) e.key: (slots: e.value.slots, lent: e.value.lent)});
+
+  /// After the user changes the grid by hand, the other sizes are arranged
+  /// afresh rather than brought back without the change.
+  void _forgetLayouts() {
+    if (_layouts.isEmpty) return;
+    _layouts = {};
+    _saveLayouts();
   }
 
   /// Tells the controller whether the home screen is in front. While it is,
@@ -553,6 +601,7 @@ class LauncherController extends ChangeNotifier {
 
   /// Puts [app] on the home grid in the first free cell.
   void pinToHome(AppEntry app) {
+    _forgetLayouts();
     _excluded.remove(app.key);
     store.setExcluded(_excluded);
     if (_settings.autoArrange) {
@@ -777,6 +826,7 @@ class LauncherController extends ChangeNotifier {
     _lent = const {};
     store.setSlots(_slots);
     store.setLent(_lent);
+    _forgetLayouts();
     return true;
   }
 
@@ -795,6 +845,7 @@ class LauncherController extends ChangeNotifier {
     final text = await source.openTextFile();
     if (text == null) return false;
     await decodeSettingsBackup(text).applyTo(store);
+    _forgetLayouts();
     reload();
     return true;
   }
@@ -808,6 +859,7 @@ class LauncherController extends ChangeNotifier {
   void updateSettings(LauncherSettings s) {
     // Turned on in settings, the arrangement shows on the way back home.
     if (s.autoArrange && !_settings.autoArrange) _arrangeNow = true;
+    if (s.autoArrange != _settings.autoArrange) _forgetLayouts();
     _settings = s;
     store.setSettings(s);
     // A changed override takes effect on the next layout pass.

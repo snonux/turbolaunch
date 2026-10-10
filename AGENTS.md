@@ -174,11 +174,15 @@ is random, made on first use and never exported.
   twice).
 
 `test/sync_test.dart` covers this with an in-memory bucket.
-`test/s3_live_test.dart` runs three phones against a real bucket when
-`S3_TEST_ACCESS_KEY_ID` and `S3_TEST_SECRET_KEY` are set (Paul's Garage
-test bucket `turbolaunch-test`); the Android e2e does Sync now against it
-with the same variables, and without them only checks that Sync now
-reports an unreachable server.
+The live tests never depend on an outside server (snonux, 2026-10-10):
+`tool/garage_test.sh` starts a throwaway single-node Garage in Docker
+(`dxflrs/garage`, port 3900, bucket `turbolaunch-test`, a random key) and
+prints the `S3_TEST_*` variables. `test/s3_live_test.dart` runs three phones
+against it, and the Android e2e does Sync now against it, the emulators
+reaching it at `10.0.2.2:3900` over plain http. Both start it themselves
+unless `S3_TEST_ENDPOINT` names another server; without Docker the Dart test
+is skipped and the e2e only checks that Sync now reports an unreachable
+server.
 `tool/sync_two_phones.sh`, run at the end of the e2e, boots a second
 emulator (AVD `phone-b`, made from the first one's system image, port
 5556) and checks two phones end to end: the phone with fewer launches takes over the other's grid

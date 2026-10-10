@@ -12,7 +12,8 @@
 #   B disables Clock: its cell shows a ghost of Clock (tapping it only says
 #     so), and Clock comes back to that cell when it is enabled again.
 #
-# Needs S3_TEST_ACCESS_KEY_ID and S3_TEST_SECRET_KEY (it skips without them),
+# Needs S3_TEST_ACCESS_KEY_ID and S3_TEST_SECRET_KEY (it skips without them;
+# tool/garage_test.sh starts a Garage and prints them),
 # and the first emulator's AVD (AVD, default "test", as
 # reactivecircus/android-emulator-runner names it), whose system image the
 # second AVD, phone-b, is made from. tool/e2e_android.sh runs
@@ -29,7 +30,8 @@ if [ -z "${S3_TEST_ACCESS_KEY_ID:-}" ] || [ -z "${S3_TEST_SECRET_KEY:-}" ]; then
   echo "SKIP two phones: S3_TEST_ACCESS_KEY_ID or S3_TEST_SECRET_KEY not set"
   exit 0
 fi
-endpoint=${S3_TEST_ENDPOINT:-https://garage.f3s.buetow.org}
+endpoint=${S3_TEST_ENDPOINT:-http://localhost:3900}            # from this script
+phone_endpoint=${S3_TEST_PHONE_ENDPOINT:-http://10.0.2.2:3900}  # from the emulators
 bucket=${S3_TEST_BUCKET:-turbolaunch-test}
 a=emulator-5554 b=emulator-5556
 failed=0
@@ -128,7 +130,7 @@ setup_sync() {
   tap_on "TurboLaunch settings" && sleep 3
   tap_on "Share launch counts" && sleep 2
   tap_on sync-enabled && sleep 1
-  type_into sync-endpoint "$endpoint"
+  type_into sync-endpoint "$phone_endpoint"
   type_into sync-bucket "$bucket"
   type_into sync-key-id "$S3_TEST_ACCESS_KEY_ID"
   type_into sync-secret "$S3_TEST_SECRET_KEY"

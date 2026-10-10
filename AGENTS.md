@@ -220,8 +220,11 @@ there; Paul moves new ones). The release key and the four `ANDROID_*`
 secrets are set up Quicklog-style, with the key in Paul's local foostore. An
 agent never creates or replaces the key without Paul's OK.
 
-A release is: bump `version:`, write the three changelogs, commit, `git tag
-vX.Y.Z; and git push; and git push --tags`.
+A release is: bump `version:`, write the three changelogs, commit and push
+to main, then tag `vX.Y.Z`. A pushed tag starts the release workflow; an
+agent, which cannot push tags, runs the workflow by hand with the tag
+instead, and it creates the tag on the current commit after checking it
+matches `version:` in `pubspec.yaml`.
 
 ## Screenshots
 
@@ -268,5 +271,5 @@ From the plan, one PR per phase:
    notifications, app pairs.
 4. **Release** (done): first tag through snonux/fdroid, README and usage guide with
    screenshots and GIFs, fdroiddata merge request.
-5. **S3 sync** (this): Quicklog's S3 client, per-device files, summed
-   launch counts and shared cells.
+5. **S3 sync** (done): Quicklog's S3 client, per-device files, summed
+   launch counts and shared cells, ghosts for apps a phone lacks.

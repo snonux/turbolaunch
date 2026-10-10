@@ -35,8 +35,9 @@ what differs or needs doing for TurboLaunch is below.
    `fastlane/metadata/android/en-US/changelogs/`.
 3. `dart format`, `flutter analyze`, `flutter test`, and a green Android
    e2e in CI.
-4. Commit, then `git tag vX.Y.Z; and git push; and git push --tags`.
-   The release workflow builds and signs the three APKs and attaches them
+4. Commit and push, then `git tag vX.Y.Z; and git push --tags`, or run
+   the Release workflow by hand with the tag, which creates it. The
+   release workflow builds and signs the three APKs and attaches them
    to the GitHub release; snonux/fdroid picks them up.
 5. Once official F-Droid has the app, `AutoUpdateMode: Version` finds new
    tags on its own.

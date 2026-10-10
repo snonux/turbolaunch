@@ -41,7 +41,8 @@ class LauncherPlatform {
   static const _events = EventChannel('launcher_platform/events');
 
   /// `"packages"` when apps were installed, removed or changed, `"home"` when
-  /// Home was pressed while the launcher was already in front.
+  /// Home was pressed while the launcher was already in front, `"homeReturn"`
+  /// when Home was pressed in another app.
   Stream<String> get events => _events.receiveBroadcastStream().map((e) => e as String);
 
   Future<List<PlatformApp>> listApps() async {

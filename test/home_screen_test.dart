@@ -403,6 +403,84 @@ void main() {
     expect(find.text('Maps'), findsOneWidget);
   });
 
+  testWidgets('a swipe up over the results closes the search', (tester) async {
+    await start(tester);
+    await openSearch(tester);
+    await tester.enterText(find.byKey(const Key('search')), 'ma');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('app-list')), findsOneWidget);
+    await tester.fling(find.byKey(const Key('app-list')), const Offset(0, -300), 1000);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byKey(const Key('search'))).focusNode!.hasFocus, isFalse);
+    expect(tester.widget<TextField>(find.byKey(const Key('search'))).controller!.text, isEmpty);
+    expect(find.byKey(const Key('home-grid')), findsOneWidget);
+
+    // Also with nothing found, and with a slow drag.
+    await openSearch(tester);
+    await tester.enterText(find.byKey(const Key('search')), 'zzz');
+    await tester.pumpAndSettle();
+    await tester.timedDrag(find.text('No match'), const Offset(0, -200), const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('home-grid')), findsOneWidget);
+  });
+
+  testWidgets('coming back from an app shows the home grid, not the search', (tester) async {
+    await start(tester);
+    bool focused() => tester.widget<TextField>(find.byKey(const Key('search'))).focusNode!.hasFocus;
+    Future<void> leaveAndComeBack() async {
+      for (final s in [AppLifecycleState.inactive, AppLifecycleState.hidden, AppLifecycleState.paused]) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+      }
+      await tester.pump();
+      for (final s in [AppLifecycleState.hidden, AppLifecycleState.inactive, AppLifecycleState.resumed]) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+      }
+      await tester.pumpAndSettle();
+    }
+
+    // Left with the search open (by Back, which sends no Home press).
+    await openSearch(tester);
+    await tester.enterText(find.byKey(const Key('search')), 'ma');
+    await tester.pumpAndSettle();
+    await leaveAndComeBack();
+    expect(focused(), isFalse);
+    expect(find.byKey(const Key('home-grid')), findsOneWidget);
+
+    // A pulled-down shade only makes it inactive: the search stays.
+    await openSearch(tester);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('app-list')), findsOneWidget);
+  });
+
+  testWidgets('"Open the keyboard on Home" opens it on Home, not on the way back from an app', (tester) async {
+    await start(tester, {'settings': '{"keyboardOnHome": true}'});
+    bool focused() => tester.widget<TextField>(find.byKey(const Key('search'))).focusNode!.hasFocus;
+    source.returnHome();
+    await tester.pumpAndSettle();
+    expect(focused(), isFalse);
+    expect(find.byKey(const Key('home-grid')), findsOneWidget);
+    source.pressHome();
+    await tester.pumpAndSettle();
+    expect(focused(), isTrue);
+  });
+
+  testWidgets('a swipe over the results that scrolls them, or goes down, keeps the search', (tester) async {
+    source = FakeAppSource([for (var i = 0; i < 60; i++) app('App$i')]);
+    await start(tester);
+    await openSearch(tester);
+    final list = find.byKey(const Key('app-list'));
+    await tester.fling(list, const Offset(0, -300), 1000);
+    await tester.pumpAndSettle();
+    expect(list, findsOneWidget);
+    await tester.fling(list, const Offset(0, 300), 1000);
+    await tester.pumpAndSettle();
+    expect(list, findsOneWidget);
+    expect(find.byKey(const Key('home-grid')), findsNothing);
+  });
+
   testWidgets('a slow pull down far enough opens the shade too; short drags do not', (tester) async {
     await start(tester);
     final grid = find.byKey(const Key('home-grid'));

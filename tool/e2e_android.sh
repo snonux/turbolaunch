@@ -329,10 +329,11 @@ read -r cx cy <<<"$(centre "Clock")"
 cy=${cy:-$((h / 3))}; top=$((cy - 200)); [ "$top" -lt 30 ] && top=30
 adb shell input swipe $((w / 2)) "$cy" $((w / 2)) "$top" 150
 sleep 2; shot swipe_up_closes_search; dump
-if grep -o '<node [^>]*resource-id="search"[^>]*>' "$out/ui.xml" | grep -q 'focused="true"\|text="clo"'; then
-  fail "swipe up over the results closes the search (swiped $cy to $top; $(grep -o '<node [^>]*resource-id="search"[^>]*>' "$out/ui.xml"))"
-else
+# The clock line shows only while the search is closed.
+if grep -q 'resource-id="clock-line"' "$out/ui.xml"; then
   pass "swipe up over the results closes the search"
+else
+  fail "swipe up over the results closes the search (swiped $cy to $top; $(adb shell dumpsys input_method | grep -o 'mInputShown=[a-z]*'); $(grep -o '<node [^>]*resource-id="search"[^>]*>' "$out/ui.xml"))"
 fi
 
 # 9c''. Leaving with the search open and coming back by Back shows home.
@@ -347,10 +348,11 @@ sleep 3
 focused | grep -q "$app" || { adb shell input keyevent KEYCODE_BACK; sleep 3; }
 shot back_from_app; dump
 expect_focus "Back from Settings returns to TurboLaunch" "$app"
-if grep -o '<node [^>]*resource-id="search"[^>]*>' "$out/ui.xml" | grep -q 'focused="true"\|text="clo"'; then
-  fail "coming back from an app shows home, not the search"
-else
+if grep -q 'resource-id="clock-line"' "$out/ui.xml"; then
   pass "coming back from an app shows home, not the search"
+else
+  fail "coming back from an app shows home, not the search ($(adb shell dumpsys input_method | grep -o 'mInputShown=[a-z]*'); $(grep -o '<node [^>]*resource-id="search"[^>]*>' "$out/ui.xml"))"
+  adb logcat -d | grep -i 'flutter' | tail -5
 fi
 adb shell input keyevent KEYCODE_HOME
 sleep 2

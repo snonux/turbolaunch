@@ -183,7 +183,7 @@ on their own.
 
 ## Settings
 
-![Settings: set as home app, cold start time, launch stats, wallpaper and home grid](images/settings.png)
+![Settings: set as home app, cold start time, launch stats, sync, wallpaper and home grid](images/settings.png)
 
 The sliders button next to the search box opens settings:
 

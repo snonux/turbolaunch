@@ -17,7 +17,6 @@
 #
 #   tool/e2e_android.sh build/app/outputs/flutter-apk/app-x86_64-release.apk
 set -euo pipefail
-export SHOTS_TO_LOG=1  # temporary: refresh the guide shots
 cd "$(dirname "$0")/.."
 apk=${1:?usage: tool/e2e_android.sh app.apk}
 app=org.buetow.turbolaunch
@@ -69,9 +68,12 @@ clock = re.search(r'resource-id="clock-line"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),
 if not clock:
     sys.exit(2)
 x1, y1, x2, y2 = map(int, clock.groups())
+# The long-press detector merges the line's texts into one label, e.g.
+# "12:07&#10;Sat 10 Oct&#10;100%", so look at every line of text and label.
 for node in re.findall(r'<node [^>]*>', xml):
     attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', node))
-    if not re.fullmatch(r'\d+%', attrs.get('text', '')):
+    parts = re.split(r'&#10;|\n', attrs.get('text', '') + '&#10;' + attrs.get('content-desc', ''))
+    if not any(re.fullmatch(r'\d+%', p.strip()) for p in parts):
         continue
     bx1, by1, bx2, by2 = map(int, re.findall(r'\d+', attrs['bounds']))
     if x1 <= bx1 and y1 <= by1 and bx2 <= x2 and by2 <= y2:

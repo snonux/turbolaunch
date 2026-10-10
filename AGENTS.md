@@ -141,7 +141,13 @@ is random, made on first use and never exported.
   with the most launches, if that is another one (Paul, 2026-10-09). After
   that `placeHome` keeps placed icons; an unplaced app goes to its shared
   cell (the busiest phone wins disagreements) and a shared cell whose app is
-  missing is lent and given back on install.
+  missing here shows a ghost (Paul, 2026-10-10): the app's name in a faded
+  outline, taken from the `labels` in the other phone's file. A phone never
+  writes its ghosts into its own file. Only when every other cell is taken
+  does a local app borrow a ghost cell (Paul, 2026-10-10), kept in `lent`
+  and given back when the ghost's app is installed; the borrower is drawn
+  at 55 % opacity so it stands out. Cells lent by 0.2.0
+  (which lent even with free cells) are placed again on the first start.
 * Automatic syncs (5 s after start, 30 s after a launch, on Home after
   15 min) fail silently; only Sync now shows errors.
 * With sync on, an import leaves the launch counts out (they would count
@@ -157,7 +163,8 @@ reports an unreachable server.
 emulator (AVD `phone-b`, made from the first one's system image, port
 5556) and checks two phones end to end: the phone with fewer launches takes over the other's grid
 (same cells on screen), the other keeps its own and gets the new app in the
-shared cell, and both stats screens show the summed counts.
+shared cell, both stats screens show the summed counts, and a disabled
+Clock leaves a ghost in its cell on phone B and takes it back when enabled.
 
 ### App pairs
 

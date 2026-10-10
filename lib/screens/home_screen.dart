@@ -466,7 +466,7 @@ class _HomeGrid extends StatelessWidget {
             ? (controller.rows, controller.cols)
             : controller.gridSizeFor(auto.rows, auto.cols);
         if (rows == 0 || cols == 0) return const SizedBox.shrink();
-        final grid = controller.grid;
+        final grid = controller.grid, ghosts = controller.ghosts, borrowed = controller.borrowed;
         return Column(
           key: const Key('home-grid'),
           children: [
@@ -476,7 +476,13 @@ class _HomeGrid extends StatelessWidget {
                   children: [
                     for (var c = 0; c < cols; c++)
                       Expanded(
-                        child: grid[Cell(r, c)] == null
+                        child: grid[Cell(r, c)] == null && ghosts[Cell(r, c)] != null
+                            ? _GhostCell(
+                                key: ValueKey('ghost-$r-$c'),
+                                label: ghosts[Cell(r, c)]!,
+                                labelScale: controller.settings.labelScale,
+                              )
+                            : grid[Cell(r, c)] == null
                             ? GestureDetector(
                                 key: ValueKey('empty-$r-$c'),
                                 behavior: HitTestBehavior.opaque,
@@ -488,6 +494,7 @@ class _HomeGrid extends StatelessWidget {
                                 app: grid[Cell(r, c)]!,
                                 icons: icons,
                                 labelScale: controller.settings.labelScale,
+                                borrowed: borrowed.contains(Cell(r, c)),
                                 onTap: () => controller.launch(grid[Cell(r, c)]!),
                                 onLongPress: () => onLongPress(grid[Cell(r, c)]!),
                               ),
@@ -509,11 +516,15 @@ class _GridCell extends StatelessWidget {
     required this.labelScale,
     required this.onTap,
     required this.onLongPress,
+    this.borrowed = false,
   });
 
   final AppEntry app;
   final IconCache icons;
   final double labelScale;
+
+  /// In a ghost's cell, lent because the grid was full: drawn a little grey.
+  final bool borrowed;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
@@ -529,6 +540,74 @@ class _GridCell extends StatelessWidget {
         onLongPress: onLongPress,
         // Scales down rather than overflowing while the keyboard squeezes the grid.
         child: LayoutBuilder(
+          builder: (context, box) => Opacity(
+            opacity: borrowed ? 0.55 : 1,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: SizedBox(
+                width: box.maxWidth,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        AppIcon(app: app, cache: icons, size: 48),
+                        if (app.otherProfile)
+                          const Positioned(
+                            right: -4,
+                            bottom: -4,
+                            child: Icon(Icons.work, size: 16, color: Colors.white),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Text(
+                        app.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12 * labelScale,
+                          color: Colors.white,
+                          shadows: const [Shadow(blurRadius: 4, color: Colors.black87)],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A cell the other phones keep for an app this phone lacks: a faded
+/// outline with the app's name, so the grid looks the same on every phone.
+/// Tapping it only says so; installing the app puts it there.
+class _GhostCell extends StatelessWidget {
+  const _GhostCell({super.key, required this.label, required this.labelScale});
+
+  final String label;
+  final double labelScale;
+
+  @override
+  Widget build(BuildContext context) {
+    const faded = Color(0x99FFFFFF);
+    const shadow = [Shadow(blurRadius: 4, color: Colors.black87)];
+    return Semantics(
+      container: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text('$label is on your other phones, not on this one.'))),
+        child: LayoutBuilder(
           builder: (context, box) => FittedBox(
             fit: BoxFit.scaleDown,
             child: SizedBox(
@@ -536,26 +615,35 @@ class _GridCell extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      AppIcon(app: app, cache: icons, size: 48),
-                      if (app.otherProfile)
-                        const Positioned(right: -4, bottom: -4, child: Icon(Icons.work, size: 16, color: Colors.white)),
-                    ],
+                  Container(
+                    width: 48,
+                    height: 48,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: const Color(0x22FFFFFF),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: faded, width: 1.5),
+                    ),
+                    child: ExcludeSemantics(
+                      child: Text(
+                        label.isEmpty ? '?' : label.characters.first.toUpperCase(),
+                        style: const TextStyle(fontSize: 22, color: faded, shadows: shadow),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 2),
                     child: Text(
-                      app.label,
+                      label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 12 * labelScale,
-                        color: Colors.white,
-                        shadows: const [Shadow(blurRadius: 4, color: Colors.black87)],
+                        color: faded,
+                        fontStyle: FontStyle.italic,
+                        shadows: shadow,
                       ),
                     ),
                   ),

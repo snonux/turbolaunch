@@ -9,6 +9,8 @@
 #     so B takes over A's grid (Settings and Clock in the same cells).
 #   A syncs again: it keeps its grid and gets Camera in B's cell.
 #   Both stats screens show 6 launches on all phones.
+#   B disables Clock: its cell shows a ghost of Clock (tapping it only says
+#     so), and Clock comes back to that cell when it is enabled again.
 #
 # Needs S3_TEST_ACCESS_KEY_ID and S3_TEST_SECRET_KEY (it skips without them),
 # and the first emulator's AVD (AVD, default "test", as
@@ -233,6 +235,30 @@ else
   fail "A: Camera in B's cell (A: $camera_a, B: $camera_b)"
 fi
 stats '6 launches on all phones, 5 here'
+
+# B loses Clock: the cell stays Clock's, as a ghost, so both grids match.
+on $b
+clock_pkg=$(adb shell pm list packages | grep -o 'package:[a-z.]*deskclock' | head -1 | cut -d: -f2)
+adb shell pm disable-user --user 0 "$clock_pkg" >/dev/null
+adb shell input keyevent KEYCODE_HOME; sleep 5
+dump; shot ghost
+ghost=$(centre Clock)
+if [ -n "$ghost" ] && [ "$ghost" = "$clock_a" ]; then
+  pass "B: ghost of Clock in its cell ($ghost)"
+else
+  fail "B: ghost of Clock in its cell (ghost: $ghost, A's Clock: $clock_a)"
+fi
+[ -n "$ghost" ] && adb shell input tap $ghost && sleep 1
+dump; shot ghost_tapped
+expect_ui "B: tapping the ghost says Clock is not here" "on your other phones"
+adb shell pm enable "$clock_pkg" >/dev/null
+adb shell input keyevent KEYCODE_HOME; sleep 5
+dump; shot clock_back
+if [ "$(centre Clock)" = "$clock_a" ] && ! grep -q "on your other phones" "$out/ui.xml"; then
+  pass "B: Clock back in its cell"
+else
+  fail "B: Clock back in its cell (now at $(centre Clock))"
+fi
 
 # Both phones stop syncing before the files go, so nothing writes them again.
 for phone in $a $b; do

@@ -1,0 +1,1 @@
+Home grid can arrange by launches (most used bottom-right). Ghost cells keep a missing app's place across phones. Screenshot tile in quick settings. Battery on the clock line is off by default (optional in settings).

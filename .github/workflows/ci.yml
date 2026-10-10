@@ -86,6 +86,9 @@ jobs:
     needs: apk
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    concurrency:
+        group: s3-test-bucket
+        cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4

@@ -1,0 +1,1 @@
+Sync between phones through your own S3 bucket: launch counts are summed and home cells shared, each phone keeps its own file. Swipe gestures: swipe up to search, and map any swipe or a recorded gesture to an action such as notifications, quick settings, recents, lock, screenshot or the flashlight. Faster search while typing.

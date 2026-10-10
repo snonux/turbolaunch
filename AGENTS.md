@@ -168,8 +168,14 @@ is random, made on first use and never exported.
   and given back when the ghost's app is installed; the borrower is drawn
   at 55 % opacity so it stands out. Cells lent by 0.2.0
   (which lent even with free cells) are placed again on the first start.
-* Automatic syncs (5 s after start, 30 s after a launch, on Home after
-  15 min) fail silently; only Sync now shows errors.
+* Automatic syncs run only on use of the home screen (a Home press, or
+  coming back to it; not the start, not a launch) and at most once an hour
+  after the last attempt, which is stored, so a failed one is retried an
+  hour later and a restart does not sync early (Paul, 2026-10-10). No
+  timers, nothing in the background. They fail silently; only Sync now
+  shows errors. With sync on and nothing synced for a week (since the last
+  sync, or since sync was switched on), the home screen shows a warning
+  that opens the Sync screen.
 * With sync on, an import leaves the launch counts out (they would count
   twice).
 

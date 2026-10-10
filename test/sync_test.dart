@@ -17,6 +17,7 @@ import 'package:turbolaunch/screens/sync_screen.dart';
 class MemoryBucket implements S3ObjectClient {
   final objects = <String, List<int>>{};
   bool down = false;
+  int puts = 0;
 
   void _check() {
     if (down) throw Exception('connection refused');
@@ -24,6 +25,7 @@ class MemoryBucket implements S3ObjectClient {
 
   @override
   Future<void> putObject(String key, List<int> bytes, {String contentType = ''}) async {
+    puts++;
     _check();
     objects[key] = bytes;
   }
@@ -71,6 +73,7 @@ class Phone {
     int rows = 3,
     int cols = 3,
     bool autoArrange = false,
+    DateTime Function()? clock,
   }) async {
     // Each instance keeps its own cache, so phones do not see each other's prefs.
     SharedPreferences.setMockInitialValues({});
@@ -80,7 +83,7 @@ class Phone {
     await store.setSyncConfig(config);
     await store.setSettings(const LauncherSettings().copyWith(autoArrange: autoArrange));
     final source = FakeAppSource(apps);
-    final c = LauncherController(source, store, s3Client: (_) => bucket);
+    final c = LauncherController(source, store, s3Client: (_) => bucket, clock: clock);
     await c.refresh();
     c.setAutoGridSize(rows, cols);
     return Phone._(source, store, c);
@@ -101,6 +104,7 @@ void main() {
     int rows = 3,
     int cols = 3,
     bool autoArrange = false,
+    DateTime Function()? clock,
   }) async {
     final p = await Phone.start(
       bucket,
@@ -110,6 +114,7 @@ void main() {
       rows: rows,
       cols: cols,
       autoArrange: autoArrange,
+      clock: clock,
     );
     phones.add(p);
     return p;
@@ -348,6 +353,86 @@ void main() {
     bucket.down = false;
     await a.c.syncNow();
     expect(a.c.lastSync, isNotNull);
+  });
+
+  test('automatic syncs: only on Home or coming back, at most hourly, failures retried an hour later', () async {
+    var now = DateTime.utc(2026, 10, 10, 12);
+    final mail = app('mail');
+    final a = await phone([mail], clock: () => now);
+    Future<void> settle() => pumpEventQueue();
+    await settle();
+    expect(bucket.puts, 0, reason: 'nothing syncs at the start');
+    await a.c.launch(mail);
+    await settle();
+    expect(bucket.puts, 0, reason: 'nor after a launch');
+    a.source.pressHome();
+    await settle();
+    expect(bucket.puts, 1);
+    now = now.add(const Duration(minutes: 59));
+    a.source.pressHome();
+    await settle();
+    expect(bucket.puts, 1, reason: 'at most once an hour');
+    now = now.add(const Duration(minutes: 2));
+    bucket.down = true;
+    a.source.pressHome();
+    await settle();
+    expect(bucket.puts, 2, reason: 'an hour later it tries again, and fails');
+    bucket.down = false;
+    now = now.add(const Duration(minutes: 30));
+    a.source.pressHome();
+    await settle();
+    expect(bucket.puts, 2, reason: 'a failed sync waits an hour too');
+    // Coming back to the home screen counts as using it; the first time it
+    // shows, at the start, does not.
+    now = now.add(const Duration(minutes: 31));
+    a.c.setInFront(true);
+    await settle();
+    expect(bucket.puts, 2);
+    a.c.setInFront(false);
+    a.c.setInFront(true);
+    await settle();
+    expect(bucket.puts, 3);
+    // Sync now always syncs.
+    await a.c.syncNow();
+    expect(bucket.puts, 4);
+  });
+
+  test('the last attempt outlives a restart, so a restart does not sync early', () async {
+    var now = DateTime.utc(2026, 10, 10, 12);
+    final mail = app('mail');
+    final a = await phone([mail], clock: () => now);
+    a.source.pressHome();
+    await pumpEventQueue();
+    expect(bucket.puts, 1);
+    final again = LauncherController(a.source, a.store, s3Client: (_) => bucket, clock: () => now);
+    addTearDown(again.dispose);
+    await again.refresh();
+    again.setAutoGridSize(3, 3);
+    now = now.add(const Duration(minutes: 10));
+    a.source.pressHome();
+    await pumpEventQueue();
+    expect(bucket.puts, 1);
+  });
+
+  test('a week without a sync asks to check it', () async {
+    var now = DateTime.utc(2026, 10, 10, 12);
+    final a = await phone([app('mail')], clock: () => now);
+    a.c.updateSyncConfig(const SyncConfig());
+    a.c.updateSyncConfig(config);
+    expect(a.c.syncOverdue, isFalse);
+    now = now.add(const Duration(days: 8));
+    expect(a.c.syncOverdue, isTrue, reason: 'switched on a week ago and never synced');
+    await a.c.syncNow();
+    expect(a.c.syncOverdue, isFalse);
+    now = now.add(const Duration(days: 6));
+    bucket.down = true;
+    a.source.pressHome();
+    await pumpEventQueue();
+    expect(a.c.syncOverdue, isFalse);
+    now = now.add(const Duration(days: 2));
+    expect(a.c.syncOverdue, isTrue, reason: 'the last sync that worked is over a week old');
+    a.c.updateSyncConfig(const SyncConfig());
+    expect(a.c.syncOverdue, isFalse, reason: 'not with sync off');
   });
 
   test('Sync now without keys asks for them', () async {

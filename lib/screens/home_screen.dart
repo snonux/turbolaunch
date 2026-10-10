@@ -10,6 +10,7 @@ import '../services/launcher_controller.dart';
 import '../widgets/app_icon.dart';
 import 'settings_screen.dart';
 import 'stats_screen.dart';
+import 'sync_screen.dart';
 
 /// The home screen: the clock line at the top, the home grid filled by
 /// launch count, and the search box docked at the bottom within thumb reach.
@@ -208,6 +209,25 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// Shown when sync is on but has not worked for a week.
+  Widget _syncWarning(ColorScheme scheme) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+    child: Material(
+      color: scheme.errorContainer,
+      borderRadius: BorderRadius.circular(12),
+      child: ListTile(
+        key: const Key('sync-warning'),
+        dense: true,
+        leading: Icon(Icons.sync_problem, color: scheme.onErrorContainer),
+        title: Text('No sync for over a week. Tap to check sync.', style: TextStyle(color: scheme.onErrorContainer)),
+        onTap: () {
+          _focus.unfocus();
+          Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => SyncScreen(controller: _c)));
+        },
+      ),
+    ),
+  );
+
   void _openSettings() {
     _focus.unfocus();
     Navigator.of(context).push(
@@ -238,6 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             children: [
               if (_c.settings.showClock && !_searching) _ClockLine(controller: _c, onLongPress: _c.toggleQuickHide),
+              if (_c.syncOverdue && !_searching) _syncWarning(scheme),
               Expanded(
                 child: !_c.loaded
                     ? const SizedBox.shrink()

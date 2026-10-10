@@ -9,6 +9,7 @@
 #     so B shows A's grid (Settings and Clock in the same cells).
 #   A syncs again: it keeps its grid and gets Camera in B's cell.
 #   Both stats screens show 6 launches on all phones.
+#   A launch and Home within the hour after that do not sync again.
 #   B disables Clock: its cell shows a ghost of Clock (tapping it only says
 #     so), and Clock comes back to that cell when it is enabled again.
 #
@@ -235,6 +236,24 @@ else
   fail "A: Camera in B's cell (A: $camera_a, B: $camera_b)"
 fi
 stats '6 launches on all phones, 5 here'
+
+# Within the hour after a sync, launching and pressing Home do not sync again.
+# The phones' files, one after the other; empty when the bucket cannot be read.
+bucket_files() {
+  local list key
+  list=$(s3 GET "?list-type=2&prefix=turbolaunch/devices/") || return 0
+  for key in $(echo "$list" | grep -o '<Key>[^<]*</Key>' | sed 's/<[^>]*>//g'); do
+    s3 GET "$key" || return 0
+  done
+}
+before=$(bucket_files)
+launch clock 1
+adb shell input keyevent KEYCODE_HOME; sleep 8
+if [ -n "$before" ] && [ "$(bucket_files)" = "$before" ]; then
+  pass "A: no second sync within the hour"
+else
+  fail "A: no second sync within the hour (the bucket changed)"
+fi
 
 # B loses Clock: the cell stays Clock's, as a ghost, so both grids match.
 on $b

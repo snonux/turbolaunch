@@ -161,6 +161,8 @@ class LauncherStore {
   static const _legacyLent = 'syncLent';
   static const _lent = 'syncBorrowed';
   static const _lastSync = 'syncLast';
+  static const _lastSyncAttempt = 'syncLastAttempt';
+  static const _syncSince = 'syncSince';
   static const _met = 'syncMetOthers';
 
   Map<String, Object?> _json(String key) {
@@ -289,6 +291,14 @@ class LauncherStore {
 
   DateTime? get lastSync => DateTime.tryParse(_prefs.getString(_lastSync) ?? '');
   Future<void> setLastSync(DateTime v) => _prefs.setString(_lastSync, v.toUtc().toIso8601String());
+
+  /// The last sync tried, worked or not; automatic syncs wait an hour after it.
+  DateTime? get lastSyncAttempt => DateTime.tryParse(_prefs.getString(_lastSyncAttempt) ?? '');
+  Future<void> setLastSyncAttempt(DateTime v) => _prefs.setString(_lastSyncAttempt, v.toUtc().toIso8601String());
+
+  /// When sync was switched on, for the warning when it never worked.
+  DateTime? get syncSince => DateTime.tryParse(_prefs.getString(_syncSince) ?? '');
+  Future<void> setSyncSince(DateTime v) => _prefs.setString(_syncSince, v.toUtc().toIso8601String());
 
   /// Whether a sync has found other phones yet; the first that does may take over their grid.
   bool get metOtherPhones => _prefs.getBool(_met) ?? false;

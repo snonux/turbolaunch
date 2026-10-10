@@ -11,6 +11,7 @@ import android.provider.Settings
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import android.util.Log
+import org.buetow.turbolaunch.platform.R
 
 /**
  * A "Screenshot" tile for quick settings, so a screenshot of any app is a

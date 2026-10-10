@@ -52,6 +52,15 @@ void main() {
     expect(titles(), isEmpty);
   });
 
+  test('rankApps ranks a picker list like search, without shortcuts', () {
+    final apps = c.installedApps;
+    expect(c.rankApps('', apps).map((r) => r.title), apps.map((a) => a.label));
+    final ranked = c.rankApps('maps', apps);
+    expect(ranked.map((r) => r.title), ['maps', 'Organic Maps']);
+    expect(ranked.last.positions, [8, 9, 10, 11]);
+    expect(c.rankApps('nn', apps).map((r) => r.title), isEmpty, reason: 'the New note shortcut is not offered');
+  });
+
   test('launch counts break ties in search', () async {
     source.apps = [app('Mail'), app('Maps')];
     await pumpEventQueue();

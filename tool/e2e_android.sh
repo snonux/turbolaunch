@@ -271,6 +271,27 @@ done
 shot settings_pair
 expect_ui "accessibility service listed" 'Accessibility service'
 if grep -q 'Off: tap to open' "$out/ui.xml"; then fail "accessibility service seen as on"; else pass "accessibility service seen as on"; fi
+# The app pair pickers search like the home screen: "sttngs" leaves Settings.
+node_has() { # resource-id text: exit 0 if that node's text or content-desc has it
+  python3 - "$out/ui.xml" "$1" "$2" <<'PY'
+import re, sys
+xml, rid, want = open(sys.argv[1]).read(), sys.argv[2], sys.argv[3]
+for node in re.findall(r'<node [^>]*>', xml):
+    attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', node))
+    if attrs.get('resource-id') == rid and any(want in attrs.get(k, '') for k in ('text', 'content-desc')):
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+scroll_to 'resource-id="pair-first"' down || true
+tap_on pair-first && sleep 2
+adb shell input text "sttngs"; sleep 2; dump; shot pair_search
+expect_ui "pair picker opens its search" 'resource-id="pair-search"'
+picks=$(grep -o 'resource-id="pick-result"' "$out/ui.xml" | wc -l)
+if [ "$picks" = 1 ] && node_has pick-result Settings; then pass "pair picker search finds only Settings"
+else fail "pair picker search finds only Settings ($picks results)"; fi
+adb shell input keyevent KEYCODE_ENTER; sleep 2; dump
+if node_has pair-first Settings; then pass "Enter picks Settings as the top app"; else fail "Enter picks Settings as the top app"; fi
 adb shell input keyevent KEYCODE_BACK
 sleep 2; dump
 expect_ui "Back returns home" 'resource-id="search"'

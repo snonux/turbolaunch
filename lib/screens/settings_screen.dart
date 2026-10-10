@@ -9,6 +9,7 @@ import '../services/launcher_store.dart';
 import '../services/settings_backup.dart';
 import '../services/startup_timer.dart';
 import '../widgets/app_icon.dart';
+import '../widgets/matched_text.dart';
 import 'gesture_settings.dart';
 import 'stats_screen.dart';
 import 'sync_screen.dart';
@@ -402,6 +403,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           _AppPicker(
             key: const Key('pair-first'),
             label: 'Top app',
+            controller: widget.controller,
             apps: apps,
             value: _first,
             icons: widget.icons,
@@ -410,6 +412,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           _AppPicker(
             key: const Key('pair-second'),
             label: 'Bottom app',
+            controller: widget.controller,
             apps: apps,
             value: _second,
             icons: widget.icons,
@@ -487,10 +490,12 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
   }
 }
 
+/// A field showing the chosen app; tapping it opens [_AppSearchDialog].
 class _AppPicker extends StatelessWidget {
   const _AppPicker({
     super.key,
     required this.label,
+    required this.controller,
     required this.apps,
     required this.value,
     required this.icons,
@@ -498,33 +503,118 @@ class _AppPicker extends StatelessWidget {
   });
 
   final String label;
+  final LauncherController controller;
   final List<AppEntry> apps;
   final AppEntry? value;
   final IconCache icons;
   final ValueChanged<AppEntry?> onChanged;
 
+  Future<void> _choose(BuildContext context) async {
+    final app = await showDialog<AppEntry>(
+      context: context,
+      builder: (_) => _AppSearchDialog(title: label, controller: controller, apps: apps, icons: icons),
+    );
+    if (app != null) onChanged(app);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final v = value;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: DropdownButtonFormField<AppEntry>(
-        initialValue: value,
-        isExpanded: true,
-        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
-        items: [
-          for (final a in apps)
-            DropdownMenuItem(
-              value: a,
-              child: Row(
+      // The key's name is the id the Android e2e finds the field by.
+      child: MergeSemantics(
+        child: Semantics(
+          identifier: (key as ValueKey<String>?)?.value,
+          child: InkWell(
+            onTap: () => _choose(context),
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: label,
+                border: const OutlineInputBorder(),
+                suffixIcon: const Icon(Icons.search),
+              ),
+              isEmpty: v == null,
+              child: v == null
+                  ? null
+                  : Row(
+                      children: [
+                        AppIcon(app: v, cache: icons, size: 24),
+                        const SizedBox(width: 12),
+                        Expanded(child: Text(v.label, overflow: TextOverflow.ellipsis)),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Picks one of [apps] with the same fuzzy search as the home screen;
+/// Enter takes the best match.
+class _AppSearchDialog extends StatefulWidget {
+  const _AppSearchDialog({required this.title, required this.controller, required this.apps, required this.icons});
+
+  final String title;
+  final LauncherController controller;
+  final List<AppEntry> apps;
+  final IconCache icons;
+
+  @override
+  State<_AppSearchDialog> createState() => _AppSearchDialogState();
+}
+
+class _AppSearchDialogState extends State<_AppSearchDialog> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final results = widget.controller.rankApps(_query, widget.apps);
+    final style = Theme.of(context).textTheme.bodyLarge!;
+    return AlertDialog(
+      title: Text(widget.title),
+      contentPadding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: MediaQuery.sizeOf(context).height * 0.6,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Semantics(
+                identifier: 'pair-search',
+                child: TextField(
+                  key: const Key('pair-search'),
+                  autofocus: true,
+                  textInputAction: TextInputAction.go,
+                  decoration: const InputDecoration(hintText: 'Search apps', prefixIcon: Icon(Icons.search)),
+                  onChanged: (q) => setState(() => _query = q),
+                  onSubmitted: (_) {
+                    if (results.isNotEmpty) Navigator.pop(context, results.first.app);
+                  },
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView(
                 children: [
-                  AppIcon(app: a, cache: icons, size: 24),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(a.label, overflow: TextOverflow.ellipsis)),
+                  for (final r in results)
+                    Semantics(
+                      identifier: 'pick-result',
+                      child: ListTile(
+                        key: ValueKey('pick-${r.app!.key}'),
+                        leading: AppIcon(app: r.app!, cache: widget.icons, size: 32),
+                        title: MatchedText(r.title, positions: r.positions, style: style),
+                        onTap: () => Navigator.pop(context, r.app),
+                      ),
+                    ),
                 ],
               ),
             ),
-        ],
-        onChanged: onChanged,
+          ],
+        ),
       ),
     );
   }

@@ -6,7 +6,7 @@
 # the home grid and keeps its cells through a turn to landscape and back,
 # that the long-press menu and quick hide work, that cold start
 # and home-ready times are logged (again after a restart), that a swipe down opens the
-# notification shade, a swipe up the search, and a gesture recorded in settings
+# notification shade, a swipe up the search (and over its results closes it), and a gesture recorded in settings
 # quick settings, that the Screenshot tile shoots the open app, that Sync now works (against a Garage of its own,
 # started by tool/garage_test.sh when Docker runs), that settings sees
 # the accessibility service and shows the launch stats, and that a double-tap on
@@ -319,6 +319,18 @@ else
   fail "swipe up opens the keyboard"
 fi
 expect_ui "swipe up lists the apps" 'Camera\|Chrome\|Clock'
+
+# 9c'. Another swipe up, over the results of a search, closes the search.
+adb shell input text "clo"
+sleep 2; dump
+expect_ui "search for clo lists Clock" 'Clock'
+adb shell input swipe $((w / 2)) $((h * 45 / 100)) $((w / 2)) $((h * 15 / 100)) 150
+sleep 2; shot swipe_up_closes_search; dump
+if grep -o '<node [^>]*resource-id="search"[^>]*>' "$out/ui.xml" | grep -q 'focused="true"\|text="clo"'; then
+  fail "swipe up over the results closes the search"
+else
+  pass "swipe up over the results closes the search"
+fi
 adb shell input keyevent KEYCODE_HOME
 sleep 2
 

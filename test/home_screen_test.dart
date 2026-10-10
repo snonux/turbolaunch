@@ -403,6 +403,41 @@ void main() {
     expect(find.text('Maps'), findsOneWidget);
   });
 
+  testWidgets('a swipe up over the results closes the search', (tester) async {
+    await start(tester);
+    await openSearch(tester);
+    await tester.enterText(find.byKey(const Key('search')), 'ma');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('app-list')), findsOneWidget);
+    await tester.fling(find.byKey(const Key('app-list')), const Offset(0, -300), 1000);
+    await tester.pumpAndSettle();
+    expect(tester.widget<TextField>(find.byKey(const Key('search'))).focusNode!.hasFocus, isFalse);
+    expect(tester.widget<TextField>(find.byKey(const Key('search'))).controller!.text, isEmpty);
+    expect(find.byKey(const Key('home-grid')), findsOneWidget);
+
+    // Also with nothing found, and with a slow drag.
+    await openSearch(tester);
+    await tester.enterText(find.byKey(const Key('search')), 'zzz');
+    await tester.pumpAndSettle();
+    await tester.timedDrag(find.text('No match'), const Offset(0, -200), const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('home-grid')), findsOneWidget);
+  });
+
+  testWidgets('a swipe over the results that scrolls them, or goes down, keeps the search', (tester) async {
+    source = FakeAppSource([for (var i = 0; i < 60; i++) app('App$i')]);
+    await start(tester);
+    await openSearch(tester);
+    final list = find.byKey(const Key('app-list'));
+    await tester.fling(list, const Offset(0, -300), 1000);
+    await tester.pumpAndSettle();
+    expect(list, findsOneWidget);
+    await tester.fling(list, const Offset(0, 300), 1000);
+    await tester.pumpAndSettle();
+    expect(list, findsOneWidget);
+    expect(find.byKey(const Key('home-grid')), findsNothing);
+  });
+
   testWidgets('a slow pull down far enough opens the shade too; short drags do not', (tester) async {
     await start(tester);
     final grid = find.byKey(const Key('home-grid'));

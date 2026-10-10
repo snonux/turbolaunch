@@ -128,6 +128,8 @@ An app pair's menu has **Delete pair** in place of App info and Uninstall.
 ## Gestures
 
 * **Swipe up** on the home screen to open the search with the keyboard up.
+* **Swipe up** over the search results to close the search again. A long
+  list scrolls first; the swipe closes it once the list is at its end.
 * **Swipe down** to pull down the notification shade.
 * **Double-tap empty space** to lock the phone. Taps on apps stay instant;
   only empty cells and wallpaper listen for double-taps.

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/gestures.dart' show VelocityTracker;
 import 'package:flutter/material.dart';
 
 import '../services/app_source.dart';
@@ -289,32 +290,80 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// The finger's path over the results, for [_swipeAway].
+  final _resultsPath = <Offset>[];
+  VelocityTracker? _resultsVelocity;
+
+  /// Whether the results list scrolled while the finger was down.
+  bool _resultsScrolled = false;
+
+  /// A swipe up over the results closes the search, unless it scrolled the
+  /// list: a long list scrolls first and closes once it is at its end.
+  Widget _swipeAway(Widget child) {
+    return Listener(
+      onPointerDown: (e) {
+        _resultsScrolled = false;
+        _resultsPath
+          ..clear()
+          ..add(e.localPosition);
+        _resultsVelocity = VelocityTracker.withKind(e.kind)..addPosition(e.timeStamp, e.localPosition);
+      },
+      onPointerMove: (e) {
+        _resultsPath.add(e.localPosition);
+        _resultsVelocity?.addPosition(e.timeStamp, e.localPosition);
+      },
+      onPointerUp: (e) {
+        final velocity = _resultsVelocity?.getVelocity().pixelsPerSecond ?? Offset.zero;
+        final up = !_resultsScrolled && Gestures.recognize(_resultsPath, velocity: velocity) == 'U';
+        _resultsPath.clear();
+        _resultsVelocity = null;
+        if (up) {
+          _c.query = '';
+          _focus.unfocus();
+        }
+      },
+      onPointerCancel: (_) {
+        _resultsPath.clear();
+        _resultsVelocity = null;
+      },
+      child: NotificationListener<ScrollUpdateNotification>(
+        onNotification: (n) {
+          if (n.scrollDelta != 0) _resultsScrolled = true;
+          return false;
+        },
+        child: child,
+      ),
+    );
+  }
+
   Widget _results(ColorScheme scheme) {
     final results = _c.results;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
-      child: Material(
-        // Only the panel is see-through; icons stay fully opaque.
-        color: scheme.surface.withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(20),
-        clipBehavior: Clip.antiAlias,
-        child: results.isEmpty
-            ? Center(child: Text(_c.query.trim().isEmpty ? 'No apps' : 'No match'))
-            : ListView.builder(
-                key: const Key('app-list'),
-                controller: _scroll,
-                // The best match sits right above the search box.
-                reverse: _c.query.isNotEmpty,
-                itemCount: results.length,
-                itemBuilder: (context, i) => _ResultTile(
-                  result: results[i],
-                  icons: widget.icons,
-                  scale: _c.settings.resultScale,
-                  showIcon: _c.settings.iconsInResults,
-                  onTap: () => _launch(results[i]),
-                  onLongPress: () => _showMenu(results[i].owner!),
+    return _swipeAway(
+      Padding(
+        padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+        child: Material(
+          // Only the panel is see-through; icons stay fully opaque.
+          color: scheme.surface.withValues(alpha: 0.72),
+          borderRadius: BorderRadius.circular(20),
+          clipBehavior: Clip.antiAlias,
+          child: results.isEmpty
+              ? Center(child: Text(_c.query.trim().isEmpty ? 'No apps' : 'No match'))
+              : ListView.builder(
+                  key: const Key('app-list'),
+                  controller: _scroll,
+                  // The best match sits right above the search box.
+                  reverse: _c.query.isNotEmpty,
+                  itemCount: results.length,
+                  itemBuilder: (context, i) => _ResultTile(
+                    result: results[i],
+                    icons: widget.icons,
+                    scale: _c.settings.resultScale,
+                    showIcon: _c.settings.iconsInResults,
+                    onTap: () => _launch(results[i]),
+                    onLongPress: () => _showMenu(results[i].owner!),
+                  ),
                 ),
-              ),
+        ),
       ),
     );
   }

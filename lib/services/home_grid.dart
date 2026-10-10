@@ -6,7 +6,9 @@
 /// cell, filled from the bottom row up (nearest the search box and the thumb),
 /// left to right. With sync, an app goes to the cell it has on the other
 /// phones when that cell is free, and a cell kept for an app this phone lacks
-/// is lent until the app is installed.
+/// shows a ghost of that app, so the grid looks the same on every phone. Only
+/// when no other cell is free does a local app borrow a ghost's cell, until
+/// the ghost's app is installed.
 library;
 
 class Cell implements Comparable<Cell> {
@@ -53,7 +55,7 @@ Map<Cell, String> placeApps({
   Set<String> excluded = const {},
 }) => placeHome(slots: slots, rows: rows, cols: cols, installed: installed, counts: counts, excluded: excluded).slots;
 
-/// Returns the new placement and the cells lent out.
+/// Returns the new placement, the cells lent out and the ghost cells.
 ///
 /// [slots] is the current placement (cell to app key). Placements whose app is
 /// not in [installed], is in [excluded] (hidden, or removed from the grid by
@@ -64,10 +66,13 @@ Map<Cell, String> placeApps({
 /// [shared] is where the other phones have their apps (see sync.dart). An
 /// unplaced app goes to its shared cell when that is free; other apps skip
 /// cells kept for such an app. A free cell whose shared app is not installed
-/// here is lent to a local app and noted in the returned `lent` (cell to
-/// owner). [lent] is that from the last pass: once the owner is installed,
-/// it takes its cell back and the borrower is placed again like any app.
-({Map<Cell, String> slots, Map<Cell, String> lent}) placeHome({
+/// here stays empty and is returned in `ghosts` (cell to owner), for the grid
+/// to draw a ghost of that app; once the owner is installed it takes the cell.
+/// Only apps left over when every other cell is taken borrow ghost cells, in
+/// fill order; those are returned in `lent` (cell to owner). [lent] is that
+/// from the last pass: once the owner is installed, it takes its cell back
+/// and the borrower is placed again like any app.
+({Map<Cell, String> slots, Map<Cell, String> lent, Map<Cell, String> ghosts}) placeHome({
   required Map<Cell, String> slots,
   required int rows,
   required int cols,
@@ -97,6 +102,10 @@ Map<Cell, String> placeApps({
       result[cell] = owner;
     }
   }
+  final ghosts = <Cell, String>{
+    for (final e in shared.entries)
+      if (inGrid(e.key) && !result.containsKey(e.key) && !installed.contains(e.value)) e.key: e.value,
+  };
   final placed = result.values.toSet();
   final candidates =
       installed.where((k) => !placed.contains(k) && !excluded.contains(k) && (counts[k] ?? 0) > 0).toList()
@@ -111,33 +120,40 @@ Map<Cell, String> placeApps({
   };
   final keptCells = kept.values.toSet();
   final order = fillOrder(rows, cols);
-  var next = 0;
+  final ghostOrder = [
+    for (final c in order)
+      if (ghosts.containsKey(c)) c,
+  ];
+  var next = 0, nextGhost = 0;
   for (final key in candidates) {
     final own = kept[key];
     if (own != null) {
       result[own] = key;
       continue;
     }
-    while (next < order.length && (result.containsKey(order[next]) || keptCells.contains(order[next]))) {
+    while (next < order.length &&
+        (result.containsKey(order[next]) || keptCells.contains(order[next]) || ghosts.containsKey(order[next]))) {
       next++;
     }
-    if (next == order.length) {
-      if (kept.isEmpty) break;
-      continue;
+    if (next < order.length) {
+      result[order[next++]] = key;
+    } else if (nextGhost < ghostOrder.length) {
+      final cell = ghostOrder[nextGhost++];
+      stillLent[cell] = ghosts.remove(cell)!;
+      result[cell] = key;
+    } else if (kept.isEmpty) {
+      break;
     }
-    final cell = order[next++];
-    result[cell] = key;
-    final owner = shared[cell];
-    if (owner != null && !installed.contains(owner)) stillLent[cell] = owner;
   }
-  return (slots: result, lent: stillLent);
+  return (slots: result, lent: stillLent, ghosts: ghosts);
 }
 
-/// Places [key] in the first free cell in fill order, if there is one.
-Map<Cell, String> pinApp(Map<Cell, String> slots, String key, int rows, int cols) {
+/// Places [key] in the first free cell in fill order that is not in [skip],
+/// if there is one.
+Map<Cell, String> pinApp(Map<Cell, String> slots, String key, int rows, int cols, {Set<Cell> skip = const {}}) {
   if (slots.containsValue(key)) return slots;
   for (final cell in fillOrder(rows, cols)) {
-    if (!slots.containsKey(cell)) return {...slots, cell: key};
+    if (!slots.containsKey(cell) && !skip.contains(cell)) return {...slots, cell: key};
   }
   return slots;
 }

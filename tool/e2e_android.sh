@@ -119,6 +119,29 @@ expect_focus "grid cell launched Settings" "com.android.settings"
 adb shell input keyevent KEYCODE_HOME
 sleep 3
 
+# 5b. Arranged by launches: Settings bottom right; Clock, launched three
+#     times, takes that corner on leaving home and Settings moves left of it.
+dump
+read -r sx sy <<<"$(centre "Settings")"
+if [ -n "${sx:-}" ] && [ "$sx" -gt $((w * 3 / 4)) ]; then pass "Settings bottom right ($sx,$sy)"; else fail "Settings bottom right (at ${sx:-?},${sy:-?})"; fi
+for _ in 1 2 3; do
+  tap_on search && sleep 1
+  adb shell input text "clock"
+  sleep 1
+  adb shell input keyevent KEYCODE_ENTER
+  sleep 4
+  adb shell input keyevent KEYCODE_HOME
+  sleep 3
+done
+dump; shot arranged
+read -r cx cy <<<"$(centre "Clock")"
+read -r sx sy <<<"$(centre "Settings")"
+if [ -n "${cx:-}" ] && [ -n "${sx:-}" ] && [ "$cx" -gt $((w * 3 / 4)) ] && [ "$sx" -lt "$cx" ] && [ "$sy" = "$cy" ]; then
+  pass "Clock took the corner, Settings left of it"
+else
+  fail "Clock took the corner, Settings left of it (Clock ${cx:-?},${cy:-?}; Settings ${sx:-?},${sy:-?})"
+fi
+
 # 6. Long-press menu: remove from home.
 dump
 xy=$(centre "Settings")

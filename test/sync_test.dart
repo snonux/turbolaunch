@@ -70,6 +70,7 @@ class Phone {
     Map<Cell, String> slots = const {},
     int rows = 3,
     int cols = 3,
+    bool autoArrange = false,
   }) async {
     // Each instance keeps its own cache, so phones do not see each other's prefs.
     SharedPreferences.setMockInitialValues({});
@@ -77,6 +78,7 @@ class Phone {
     await store.setCounts(counts);
     await store.setSlots(slots);
     await store.setSyncConfig(config);
+    await store.setSettings(const LauncherSettings().copyWith(autoArrange: autoArrange));
     final source = FakeAppSource(apps);
     final c = LauncherController(source, store, s3Client: (_) => bucket);
     await c.refresh();
@@ -98,8 +100,17 @@ void main() {
     Map<Cell, String> slots = const {},
     int rows = 3,
     int cols = 3,
+    bool autoArrange = false,
   }) async {
-    final p = await Phone.start(bucket, apps, counts: counts, slots: slots, rows: rows, cols: cols);
+    final p = await Phone.start(
+      bucket,
+      apps,
+      counts: counts,
+      slots: slots,
+      rows: rows,
+      cols: cols,
+      autoArrange: autoArrange,
+    );
     phones.add(p);
     return p;
   }
@@ -120,6 +131,42 @@ void main() {
       await p.c.syncNow();
     }
   }
+
+  test('arranged by launches, phones rank by the summed counts and show a ghost in its rank', () async {
+    final mail = app('mail'), maps = app('maps'), chat = app('chat'), bank = app('bank');
+    final a = await phone(
+      [mail, maps, chat],
+      counts: {mail.key: 5, maps.key: 1},
+      slots: {const Cell(2, 0): maps.key},
+      autoArrange: true,
+    );
+    // B lacks maps and has bank, which A lacks; its user serial differs too.
+    final b = await phone([app('mail', serial: 10), chat, bank], counts: {chat.key: 4, bank.key: 3}, autoArrange: true);
+    expect(a.grid, {const Cell(2, 2): 'mail', const Cell(2, 1): 'maps'});
+    await syncAll();
+    // Totals: mail 5, chat 4, bank 3, maps 1.
+    expect(a.grid, {const Cell(2, 2): 'mail', const Cell(2, 1): 'chat', const Cell(1, 2): 'maps'});
+    expect(a.c.ghosts, {const Cell(2, 0): 'bank'});
+    expect(b.grid, {const Cell(2, 2): 'mail', const Cell(2, 1): 'chat', const Cell(2, 0): 'bank'});
+    expect(b.c.ghosts, {const Cell(1, 2): 'maps'});
+    // Installed, maps takes its ghost's cell.
+    b.source.apps = [app('mail', serial: 10), chat, bank, maps];
+    await pumpEventQueue();
+    expect(b.grid[const Cell(1, 2)], 'maps');
+    expect(b.c.ghosts, isEmpty);
+  });
+
+  test('arranged by launches, a sync with the home in front waits for it to be left', () async {
+    final mail = app('mail'), chat = app('chat');
+    final a = await phone([mail, chat], counts: {mail.key: 2}, autoArrange: true);
+    final b = await phone([mail, chat], counts: {chat.key: 9}, autoArrange: true);
+    await b.c.syncNow();
+    a.c.setInFront(true);
+    await a.c.syncNow();
+    expect(a.grid, {const Cell(2, 2): 'mail'});
+    a.c.setInFront(false);
+    expect(a.grid, {const Cell(2, 2): 'chat', const Cell(2, 1): 'mail'});
+  });
 
   test('three phones with settled grids take over the grid of the busiest one', () async {
     final mail = app('mail'), maps = app('maps'), chat = app('chat'), news = app('news'), bank = app('bank');

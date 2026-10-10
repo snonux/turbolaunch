@@ -7,8 +7,8 @@
 # that the long-press menu and quick hide work, that cold start
 # and home-ready times are logged (again after a restart), that a swipe down opens the
 # notification shade, a swipe up the search, and a gesture recorded in settings
-# quick settings, that the Screenshot tile shoots the open app, that Sync now works (against the Garage test bucket when
-# S3_TEST_ACCESS_KEY_ID and S3_TEST_SECRET_KEY are set), that settings sees
+# quick settings, that the Screenshot tile shoots the open app, that Sync now works (against a Garage of its own,
+# started by tool/garage_test.sh when Docker runs), that settings sees
 # the accessibility service and shows the launch stats, and that a double-tap on
 # empty home space locks the phone. Screenshots, UI dumps and the log go to
 # build/e2e-android/; at the end tool/bench_android.sh measures speed and
@@ -25,6 +25,11 @@ out=build/e2e-android
 rm -rf "$out" && mkdir -p "$out"
 failed=0
 step=0
+# Sync runs against a throwaway Garage in Docker (tool/garage_test.sh) unless
+# S3_TEST_ENDPOINT names another server; tool/sync_two_phones.sh inherits it.
+if [ -z "${S3_TEST_ENDPOINT:-}" ] && docker info >/dev/null 2>&1; then
+  eval "$(tool/garage_test.sh | sed 's/^/export /')"
+fi
 
 pass() { echo "PASS $1"; }
 fail() { echo "FAIL $1"; failed=1; }
@@ -386,10 +391,11 @@ sleep 3
 expect_focus "home again after the screenshot" "$app"
 
 # 9e. Sync. Sync now without keys asks for them. With S3_TEST_ACCESS_KEY_ID
-#     and S3_TEST_SECRET_KEY set (CI secrets for the Garage test bucket), a
+#     and S3_TEST_SECRET_KEY set (by tool/garage_test.sh, above), a
 #     real sync that finds a second phone's file put there beforehand;
 #     without them, Sync now against a closed port must say it failed.
-s3_bucket_url="${S3_TEST_ENDPOINT:-https://garage.f3s.buetow.org}/${S3_TEST_BUCKET:-turbolaunch-test}"
+# This script talks to Garage at S3_TEST_ENDPOINT, the phone at S3_TEST_PHONE_ENDPOINT.
+s3_bucket_url="${S3_TEST_ENDPOINT:-http://localhost:3900}/${S3_TEST_BUCKET:-turbolaunch-test}"
 s3() { # method path [file]: one signed request to the test bucket
   curl -sS --fail-with-body --aws-sigv4 "aws:amz:garage:s3" --user "$S3_TEST_ACCESS_KEY_ID:$S3_TEST_SECRET_KEY" \
     -X "$1" "$s3_bucket_url/$2" ${3:+-T "$3"}
@@ -438,7 +444,7 @@ scroll_to 'Enter the access key ID' down || true; shot sync_no_keys
 expect_ui "Sync now without keys asks for them" 'Enter the access key ID'
 scroll_to 'resource-id="sync-endpoint"' up || true
 if [ $live = 1 ]; then
-  type_into sync-endpoint "${S3_TEST_ENDPOINT:-https://garage.f3s.buetow.org}"
+  type_into sync-endpoint "${S3_TEST_PHONE_ENDPOINT:-http://10.0.2.2:3900}"
   hide_keyboard
   type_into sync-bucket "${S3_TEST_BUCKET:-turbolaunch-test}"
   hide_keyboard

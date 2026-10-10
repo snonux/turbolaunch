@@ -81,6 +81,15 @@ class LauncherController extends ChangeNotifier {
     _sync = store.syncConfig;
     _remote = store.remote;
     _remoteCounts = remoteCounts(_remote);
+    // Cells lent out before ghost icons go back to the app they were kept
+    // for: the borrower is placed again, in a ghost's cell only when no
+    // other cell is free.
+    final legacy = store.legacyLent;
+    if (legacy.isNotEmpty) {
+      _slots = {..._slots}..removeWhere((cell, _) => legacy.containsKey(cell));
+      store.setSlots(_slots);
+      store.clearLegacyLent();
+    }
     _lent = store.lent;
     _lastSync = store.lastSync;
     _totals = null;
@@ -121,7 +130,11 @@ class LauncherController extends ChangeNotifier {
   late List<DeviceSync> _remote;
   late Map<String, int> _remoteCounts;
 
-  /// Cells lent to a local app, by the sync key of the app they are kept for.
+  /// Cells kept for an app this phone lacks, by its sync key.
+  Map<Cell, String> _ghosts = const {};
+
+  /// Ghost cells a local app borrowed because no other cell was free, by the
+  /// sync key of the app they are kept for.
   late Map<Cell, String> _lent;
   DateTime? _lastSync;
   DateTime? _lastAttempt;
@@ -191,6 +204,10 @@ class LauncherController extends ChangeNotifier {
 
   bool isHidden(AppEntry a) => _hidden.contains(a.key);
   bool isOnHome(AppEntry a) => _slots.containsValue(a.key);
+
+  /// Cells the other phones keep for an app this phone lacks, with that
+  /// app's name: the grid draws a ghost there, so it matches the others.
+  Map<Cell, String> get ghosts => {for (final e in _ghosts.entries) e.key: ghostLabel(_remote, e.value)};
 
   /// The home grid: which app sits in which cell.
   Map<Cell, AppEntry> get grid {
@@ -376,6 +393,7 @@ class LauncherController extends ChangeNotifier {
       _lent = next.lent;
       store.setLent(_lent);
     }
+    _ghosts = next.ghosts;
   }
 
   /// Launches [app] (both apps of a pair), counts the launch, and clears the search.
@@ -432,8 +450,17 @@ class LauncherController extends ChangeNotifier {
   void pinToHome(AppEntry app) {
     _excluded.remove(app.key);
     store.setExcluded(_excluded);
-    _slots = pinApp(_slots, app.key, _rows, _cols);
+    var slots = pinApp(_slots, app.key, _rows, _cols, skip: _ghosts.keys.toSet());
+    // With every other cell taken, the app borrows a ghost's cell.
+    final ghost = fillOrder(_rows, _cols).where(_ghosts.containsKey).firstOrNull;
+    if (!slots.containsValue(app.key) && ghost != null) {
+      slots = {...slots, ghost: app.key};
+      _lent = {..._lent, ghost: _ghosts[ghost]!};
+      store.setLent(_lent);
+    }
+    _slots = slots;
     store.setSlots(_slots);
+    _place();
     notifyListeners();
   }
 
@@ -542,6 +569,7 @@ class LauncherController extends ChangeNotifier {
     }
     final device = store.deviceId;
     final rows = _lastRows;
+    final labels = {for (final a in _apps) a.key: a.label};
     DeviceSync mine() => DeviceSync(
       device: device,
       name: _sync.deviceName,
@@ -552,7 +580,11 @@ class LauncherController extends ChangeNotifier {
       },
       cells: {
         for (final e in _slots.entries)
-          if (e.key.row < rows) flipRows(e.key, rows): _lent[e.key] ?? _syncKeyOf(e.value),
+          if (e.key.row < rows) flipRows(e.key, rows): _syncKeyOf(e.value),
+      },
+      labels: {
+        for (final e in _slots.entries)
+          if (e.key.row < rows && labels[e.value] != null) _syncKeyOf(e.value): labels[e.value]!,
       },
     );
     final own = '$syncPrefix$device.json';
@@ -589,7 +621,7 @@ class LauncherController extends ChangeNotifier {
   /// On the first sync that finds other phones: when one of them has more
   /// launches than this phone ([mine]), its grid replaces this phone's.
   /// Apps it lacks lose their cells and are placed again; its cells for apps
-  /// this phone lacks are lent out by [_place].
+  /// this phone lacks show ghosts (see [_place]).
   bool _adoptBusiestGrid(DeviceSync mine, int rows) {
     final busiest = ([..._remote, mine]..sort(byLaunches)).first;
     if (identical(busiest, mine)) return false;

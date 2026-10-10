@@ -8,7 +8,8 @@
 ///
 /// The first time a phone meets other phones, it takes over the grid of the
 /// phone with the most launches, if that is another phone. After that, a
-/// placed icon never moves again, except to give a lent cell back.
+/// placed icon never moves again. A cell the others keep for an app this
+/// phone lacks shows a ghost of that app, named from the [DeviceSync.labels].
 ///
 /// Apps are named across phones by their sync key, the app key without the
 /// user serial (serials differ between phones): `package/activity` for the
@@ -125,6 +126,7 @@ class DeviceSync {
     this.updatedAt,
     this.counts = const {},
     this.cells = const {},
+    this.labels = const {},
   });
 
   final String device;
@@ -134,6 +136,10 @@ class DeviceSync {
 
   /// Home cells with rows counted from the bottom (0 is the bottom row).
   final Map<Cell, String> cells;
+
+  /// The names of the apps in [cells], by sync key, for the ghosts on phones
+  /// that lack them. Files from before ghosts have none.
+  final Map<String, String> labels;
 
   String get label => name.trim().isEmpty ? device : name.trim();
 
@@ -145,6 +151,7 @@ class DeviceSync {
     'updatedAt': ?updatedAt?.toUtc().toIso8601String(),
     'counts': counts,
     'cells': {for (final e in cells.entries) e.key.toString(): e.value},
+    'labels': labels,
   };
 
   String encode() => jsonEncode(toJson());
@@ -156,7 +163,7 @@ class DeviceSync {
     if (version is! int || version < 1 || version > kSyncFormatVersion) return null;
     final device = j['device'];
     if (device is! String || device.isEmpty) return null;
-    final counts = j['counts'], cells = j['cells'];
+    final counts = j['counts'], cells = j['cells'], labels = j['labels'];
     final updatedAt = j['updatedAt'];
     return DeviceSync(
       device: device,
@@ -172,6 +179,12 @@ class DeviceSync {
           for (final e in cells.entries)
             if (e.key is String && Cell.parse(e.key as String) != null && e.value is String)
               Cell.parse(e.key as String)!: e.value as String,
+      },
+      labels: {
+        if (labels is Map)
+          for (final e in labels.entries)
+            if (e.key is String && e.value is String && (e.value as String).trim().isNotEmpty)
+              e.key as String: e.value as String,
       },
     );
   }
@@ -225,4 +238,22 @@ Map<Cell, String> sharedCells(Iterable<DeviceSync> remote, int rows) {
     }
   }
   return shared;
+}
+
+/// The name of the app with [syncKey], as the busiest phone that has it in a
+/// cell calls it; else made up from the key (`org.maps/org.maps.Main` gives
+/// `maps`), for files from before ghosts.
+String ghostLabel(Iterable<DeviceSync> remote, String syncKey) {
+  for (final d in remote.toList()..sort(byLaunches)) {
+    final label = d.labels[syncKey];
+    if (label != null) return label;
+  }
+  if (syncKey.startsWith('pair:')) {
+    final parts = syncKey.substring(5).split('|');
+    if (parts.length == 2) return '${ghostLabel(remote, parts[0])} | ${ghostLabel(remote, parts[1])}';
+  }
+  final hash = syncKey.lastIndexOf('#');
+  final base = hash < 0 ? syncKey : syncKey.substring(0, hash);
+  final package = base.split('/').first;
+  return package.substring(package.lastIndexOf('.') + 1);
 }

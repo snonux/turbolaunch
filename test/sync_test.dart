@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -95,8 +97,9 @@ void main() {
     Map<String, int> counts = const {},
     Map<Cell, String> slots = const {},
     int rows = 3,
+    int cols = 3,
   }) async {
-    final p = await Phone.start(bucket, apps, counts: counts, slots: slots, rows: rows);
+    final p = await Phone.start(bucket, apps, counts: counts, slots: slots, rows: rows, cols: cols);
     phones.add(p);
     return p;
   }
@@ -144,13 +147,13 @@ void main() {
     expect(b.grid[const Cell(2, 1)], 'chat');
     expect(a.grid[const Cell(2, 0)], 'maps');
     expect(a.grid[const Cell(2, 1)], 'chat');
-    // C has no maps: its cell is lent to C's most-launched app without a cell.
+    // C has no maps: its cell shows a ghost of maps, so the grids match.
     expect(c.grid[const Cell(2, 1)], 'chat');
-    expect(c.grid[const Cell(2, 0)], 'mail');
-    expect(c.store.lent, {const Cell(2, 0): 'org.maps/org.maps.Main'});
+    expect(c.grid[const Cell(2, 0)], isNull);
+    expect(c.c.ghosts, {const Cell(2, 0): 'maps'});
     // Apps that lost their cell got another one.
     expect(a.grid.containsValue('mail'), isTrue);
-    expect(c.grid.values, containsAll(['news', 'bank']));
+    expect(c.grid.values, containsAll(['mail', 'news', 'bank']));
     // Counts are summed: maps 10 + 40 on phone A.
     expect(a.c.totals[maps.key], 50);
     expect(a.c.counts[maps.key], 10);
@@ -177,27 +180,80 @@ void main() {
     // B already uses its bottom left for maps, and has no chat.
     final b = await phone([mail, maps], counts: {maps.key: 1}, slots: {const Cell(2, 0): maps.key});
     await syncAll();
-    // Mail goes where A has it, not to the next free cell in fill order.
-    expect(b.grid, {const Cell(2, 0): 'maps', const Cell(2, 1): 'mail'});
+    // B takes over A's grid: mail goes where A has it, chat's cell shows its
+    // ghost, and maps gets the next free cell.
+    expect(b.grid, {const Cell(2, 1): 'mail', const Cell(2, 2): 'maps'});
+    expect(b.c.ghosts, {const Cell(2, 0): 'chat'});
   });
 
-  test('a cell kept for an app the phone lacks is lent, and returned when it is installed', () async {
+  test('a cell kept for an app the phone lacks shows its ghost until it is installed', () async {
     final mail = app('mail'), chat = app('chat'), news = app('news');
-    await phone([mail, chat], counts: {chat.key: 9, mail.key: 5});
+    final a = await phone([mail, chat], counts: {chat.key: 9, mail.key: 5});
     final b = await phone([mail, news]);
     await syncAll();
     expect(b.grid, {const Cell(2, 1): 'mail'});
-    // News, launched after the sync, borrows chat's cell (bottom left).
+    expect(b.c.ghosts, {const Cell(2, 0): 'chat'});
+    // News, launched after the sync, leaves chat's ghost alone.
     await b.c.launch(news);
-    expect(b.grid, {const Cell(2, 0): 'news', const Cell(2, 1): 'mail'});
-    expect(b.store.lent, {const Cell(2, 0): 'org.chat/org.chat.Main'});
+    expect(b.grid, {const Cell(2, 1): 'mail', const Cell(2, 2): 'news'});
+    expect(b.c.ghosts, {const Cell(2, 0): 'chat'});
+    // B's file claims no cell for the ghost, so A could still move on.
+    await b.c.syncNow();
+    final file = DeviceSync.decode(utf8.decode(bucket.objects['$kSyncPrefix${b.store.deviceId}.json']!))!;
+    expect(file.cells.values, isNot(contains('org.chat/org.chat.Main')));
+    expect(file.labels, {'org.mail/org.mail.Main': 'mail', 'org.news/org.news.Main': 'news'});
 
     b.source.apps = [mail, news, chat];
     await pumpEventQueue();
-    expect(b.grid[const Cell(2, 0)], 'chat');
-    expect(b.grid[const Cell(2, 1)], 'mail');
-    expect(b.grid.containsValue('news'), isTrue);
+    expect(b.grid, {const Cell(2, 0): 'chat', const Cell(2, 1): 'mail', const Cell(2, 2): 'news'});
+    expect(b.c.ghosts, isEmpty);
+    expect(a.c.ghosts, isEmpty);
+  });
+
+  test('a cell lent out before ghosts turns into a ghost', () async {
+    final mail = app('mail'), chat = app('chat'), news = app('news');
+    await phone([mail, chat], counts: {chat.key: 9, mail.key: 5});
+    final b = await phone([mail, news], counts: {news.key: 1});
+    await syncAll();
+    // What an older version left: news borrowing chat's cell.
+    await b.store.setSlots({const Cell(2, 0): news.key, const Cell(2, 1): mail.key});
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('syncLent', '{"2,0": "org.chat/org.chat.Main"}');
+    final c = LauncherController(b.source, b.store, s3Client: (_) => bucket);
+    addTearDown(c.dispose);
+    await c.refresh();
+    c.setAutoGridSize(3, 3);
+    expect(c.ghosts, {const Cell(2, 0): 'chat'});
+    expect(c.grid.map((cell, a) => MapEntry(cell, a.label)), {const Cell(2, 1): 'mail', const Cell(2, 2): 'news'});
+    expect(b.store.legacyLent, isEmpty);
     expect(b.store.lent, isEmpty);
+  });
+
+  test('a local app borrows a ghost cell only when no other cell is free', () async {
+    final mail = app('mail'), chat = app('chat'), news = app('news');
+    await phone([mail, chat], counts: {chat.key: 9, mail.key: 5}, rows: 1, cols: 2);
+    final b = await phone([mail, news], rows: 1, cols: 2);
+    await syncAll();
+    expect(b.grid, {const Cell(0, 1): 'mail'});
+    expect(b.c.ghosts, {const Cell(0, 0): 'chat'});
+    // News has too few launches for a cell of its own: it takes the ghost's.
+    await b.c.launch(news);
+    expect(b.grid, {const Cell(0, 0): 'news', const Cell(0, 1): 'mail'});
+    expect(b.c.ghosts, isEmpty);
+    expect(b.store.lent, {const Cell(0, 0): 'org.chat/org.chat.Main'});
+    // Installing chat gives the cell back.
+    b.source.apps = [mail, news, chat];
+    await pumpEventQueue();
+    expect(b.grid, {const Cell(0, 0): 'chat', const Cell(0, 1): 'mail'});
+    expect(b.store.lent, isEmpty);
+  });
+
+  test('a ghost is named by the busiest phone, or from its key in old files', () {
+    final x = DeviceSync(device: 'x', counts: const {'a': 1}, labels: const {'org.maps/org.maps.Main': 'Old Maps'});
+    final y = DeviceSync(device: 'y', counts: const {'a': 9}, labels: const {'org.maps/org.maps.Main': 'Maps'});
+    expect(ghostLabel([x, y], 'org.maps/org.maps.Main'), 'Maps');
+    expect(ghostLabel([x], 'org.chat/org.chat.Main#work'), 'chat');
+    expect(ghostLabel([y], 'pair:org.maps/org.maps.Main|org.chat/org.chat.Main'), 'Maps | chat');
   });
 
   test('cells are matched from the bottom row on phones with more rows', () async {
@@ -252,8 +308,15 @@ void main() {
   });
 
   test('a device file round-trips and junk is ignored', () {
-    final d = DeviceSync(device: 'abc', name: 'Pixel', counts: const {'a/b': 3}, cells: {const Cell(0, 1): 'a/b'});
+    final d = DeviceSync(
+      device: 'abc',
+      name: 'Pixel',
+      counts: const {'a/b': 3},
+      cells: {const Cell(0, 1): 'a/b'},
+      labels: const {'a/b': 'App'},
+    );
     final back = DeviceSync.decode(d.encode())!;
+    expect(back.labels, {'a/b': 'App'});
     expect(back.device, 'abc');
     expect(back.counts, {'a/b': 3});
     expect(back.cells, {const Cell(0, 1): 'a/b'});

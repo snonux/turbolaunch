@@ -504,6 +504,22 @@ void main() {
     );
   });
 
+  testWidgets('a cell the other phones keep for a missing app shows its ghost', (tester) async {
+    // The other phone has Chat, which this one lacks, in its bottom-left cell.
+    await start(tester, {
+      'syncRemote':
+          '[{"format": "turbolaunch-sync", "formatVersion": 1, "device": "other", '
+          '"counts": {"org.example.chat/org.example.chat.Main": 9}, '
+          '"cells": {"0,0": "org.example.chat/org.example.chat.Main"}, '
+          '"labels": {"org.example.chat/org.example.chat.Main": "Chat"}}]',
+    });
+    expect(find.text('Chat'), findsOneWidget);
+    await tester.tap(find.text('Chat'));
+    await tester.pump();
+    expect(find.text('Chat is on your other phones, not on this one.'), findsOneWidget);
+    expect(source.launched, isEmpty);
+  });
+
   testWidgets('each grid cell is its own accessibility node', (tester) async {
     final semantics = tester.ensureSemantics();
     await start(tester, {'launchCounts': '{"org.example.maps/org.example.maps.Main#0": 1}'});

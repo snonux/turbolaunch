@@ -141,7 +141,8 @@ class LauncherStore {
   static const _sync = 'syncConfig';
   static const _deviceId = 'syncDeviceId';
   static const _remote = 'syncRemote';
-  static const _lent = 'syncLent';
+  static const _legacyLent = 'syncLent';
+  static const _lent = 'syncBorrowed';
   static const _lastSync = 'syncLast';
   static const _met = 'syncMetOthers';
 
@@ -252,14 +253,22 @@ class LauncherStore {
 
   Future<void> setRemote(List<DeviceSync> v) => _prefs.setString(_remote, jsonEncode([for (final d in v) d.toJson()]));
 
-  /// Cells lent to a local app, with the sync key of the app they are kept for.
-  Map<Cell, String> get lent => {
-    for (final e in _json(_lent).entries)
-      if (Cell.parse(e.key) != null && e.value is String) Cell.parse(e.key)!: e.value as String,
-  };
+  /// Ghost cells a local app borrowed, with the sync key of the app they are kept for.
+  Map<Cell, String> get lent => _cells(_lent);
 
   Future<void> setLent(Map<Cell, String> v) =>
       _prefs.setString(_lent, jsonEncode({for (final e in v.entries) e.key.toString(): e.value}));
+
+  /// Cells lent by versions before ghost icons, which lent a cell even when
+  /// others were free. Read once, to place their borrowers again.
+  Map<Cell, String> get legacyLent => _cells(_legacyLent);
+
+  Future<void> clearLegacyLent() => _prefs.remove(_legacyLent);
+
+  Map<Cell, String> _cells(String key) => {
+    for (final e in _json(key).entries)
+      if (Cell.parse(e.key) != null && e.value is String) Cell.parse(e.key)!: e.value as String,
+  };
 
   DateTime? get lastSync => DateTime.tryParse(_prefs.getString(_lastSync) ?? '');
   Future<void> setLastSync(DateTime v) => _prefs.setString(_lastSync, v.toUtc().toIso8601String());

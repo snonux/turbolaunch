@@ -33,8 +33,10 @@ class StatsScreen extends StatelessWidget {
                       title: Text(
                         synced ? '$total launches on all phones, $here here' : '$total launches on this phone',
                       ),
-                      subtitle: const Text(
-                        'Free home cells go to the most-launched apps; a placed app keeps its cell.',
+                      subtitle: Text(
+                        controller.settings.autoArrange
+                            ? 'The most launched app sits bottom right, the next ones to its left and above.'
+                            : 'Free home cells go to the most-launched apps; a placed app keeps its cell.',
                       ),
                     ),
                     for (final s in stats)

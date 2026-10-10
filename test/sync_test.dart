@@ -168,6 +168,23 @@ void main() {
     expect(a.grid, {const Cell(2, 2): 'chat', const Cell(2, 1): 'mail'});
   });
 
+  test('arranged by launches, with the home in front an app that goes leaves its ghost and comes back to it', () async {
+    final mail = app('mail'), chat = app('chat');
+    await phone([mail, chat], counts: {mail.key: 5, chat.key: 3}, autoArrange: true);
+    final b = await phone([mail, chat], autoArrange: true);
+    await syncAll();
+    expect(b.grid, {const Cell(2, 2): 'mail', const Cell(2, 1): 'chat'});
+    b.c.setInFront(true);
+    b.source.apps = [chat];
+    await pumpEventQueue();
+    expect(b.grid, {const Cell(2, 1): 'chat'});
+    expect(b.c.ghosts, {const Cell(2, 2): 'mail'});
+    b.source.apps = [mail, chat];
+    await pumpEventQueue();
+    expect(b.grid, {const Cell(2, 2): 'mail', const Cell(2, 1): 'chat'});
+    expect(b.c.ghosts, isEmpty);
+  });
+
   test('three phones with settled grids take over the grid of the busiest one', () async {
     final mail = app('mail'), maps = app('maps'), chat = app('chat'), news = app('news'), bank = app('bank');
     // Bottom row is row 2 on a 3-row grid. B has the most launches (70).

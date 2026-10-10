@@ -171,10 +171,12 @@ tap_on "TurboLaunch settings" && sleep 3
 dump; shot settings
 expect_ui "settings open" 'Set as home app'
 expect_ui "cold start shown" 'ms from process start'
-# Launch stats: Settings was launched twice, by Enter and from its cell.
+# Launch stats: Settings was launched twice, by Enter and from its cell, and
+# Clock three times.
 tap_on "Launch stats" && sleep 2
 dump; shot stats
-expect_ui "stats count the launches" '2 launches on this phone'
+expect_ui "stats count the launches" '5 launches on this phone'
+expect_ui "stats count Settings" 'Settings&#10;Not on home&#10;2'
 adb shell input keyevent KEYCODE_BACK
 sleep 2; dump
 # The gestures section is below the fold; uiautomator only dumps what shows.

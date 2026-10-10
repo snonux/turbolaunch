@@ -438,10 +438,26 @@ class LauncherController extends ChangeNotifier {
         for (final e in _slots.entries)
           if (inGrid(e.key) && installed.contains(e.value) && !excluded.contains(e.value)) e.key: e.value,
       };
-      _ghosts = {
+      // Nothing moves, but an app that just went away and that the other
+      // phones show leaves its ghost, and an app back again takes its
+      // ghost's cell.
+      final elsewhere = shared.values.toSet();
+      final ghosts = <Cell, String>{
         for (final e in _ghosts.entries)
-          if (inGrid(e.key) && !slots.containsKey(e.key) && !installed.contains(e.value)) e.key: e.value,
+          if (inGrid(e.key) && !slots.containsKey(e.key)) e.key: e.value,
+        for (final e in _slots.entries)
+          if (inGrid(e.key) && !installed.contains(e.value) && elsewhere.contains(_syncKeyOf(e.value)))
+            e.key: _syncKeyOf(e.value),
       };
+      _ghosts = {};
+      for (final e in ghosts.entries) {
+        final back = _localKeys[e.value];
+        if (back == null) {
+          _ghosts[e.key] = e.value;
+        } else if (!excluded.contains(back) && !slots.containsValue(back)) {
+          slots[e.key] = back;
+        }
+      }
       _arrangePending = true;
     } else {
       final next = arrangeHome(

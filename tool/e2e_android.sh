@@ -65,6 +65,19 @@ tap_on() {
   echo "  tap '$1' at $xy"
   adb shell input tap $xy
 }
+scroll_to() { # text, direction up|down
+  dump
+  for _ in 1 2 3 4 5 6; do
+    grep -q -- "$1" "$out/ui.xml" && return 0
+    if [ "$2" = down ]; then
+      adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300
+    else
+      adb shell input swipe $((w / 2)) $((h / 4)) $((w / 2)) $((h * 3 / 4)) 300
+    fi
+    sleep 1; dump
+  done
+  grep -q -- "$1" "$out/ui.xml"
+}
 # Exit 0 if a \d+% text node sits inside the clock-line bounds; 1 if not; 2 if no clock.
 clock_battery_present() {
   python3 - "$out/ui.xml" <<'PY'
@@ -271,6 +284,27 @@ done
 shot settings_pair
 expect_ui "accessibility service listed" 'Accessibility service'
 if grep -q 'Off: tap to open' "$out/ui.xml"; then fail "accessibility service seen as on"; else pass "accessibility service seen as on"; fi
+# The app pair pickers search like the home screen: "sttngs" leaves Settings.
+node_has() { # resource-id text: exit 0 if that node's text or content-desc has it
+  python3 - "$out/ui.xml" "$1" "$2" <<'PY'
+import re, sys
+xml, rid, want = open(sys.argv[1]).read(), sys.argv[2], sys.argv[3]
+for node in re.findall(r'<node [^>]*>', xml):
+    attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', node))
+    if attrs.get('resource-id') == rid and any(want in attrs.get(k, '') for k in ('text', 'content-desc')):
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+scroll_to 'resource-id="pair-first"' down || true
+tap_on pair-first && sleep 2
+adb shell input text "sttngs"; sleep 2; dump; shot pair_search
+expect_ui "pair picker opens its search" 'resource-id="pair-search"'
+picks=$(grep -o 'resource-id="pick-result"' "$out/ui.xml" | wc -l || true)
+if [ "$picks" = 1 ] && node_has pick-result Settings; then pass "pair picker search finds only Settings"
+else fail "pair picker search finds only Settings ($picks results)"; fi
+adb shell input keyevent KEYCODE_ENTER; sleep 2; dump
+if node_has pair-first Settings; then pass "Enter picks Settings as the top app"; else fail "Enter picks Settings as the top app"; fi
 adb shell input keyevent KEYCODE_BACK
 sleep 2; dump
 expect_ui "Back returns home" 'resource-id="search"'
@@ -445,19 +479,6 @@ type_into() { # resource-id text: finds the field above or below, types into it
   scroll_to "resource-id=\"$1\"" down || scroll_to "resource-id=\"$1\"" up || true
   tap_on "$1" && sleep 1 && adb shell input text "$2"
   sleep 1
-}
-scroll_to() { # text, direction up|down
-  dump
-  for _ in 1 2 3 4 5 6; do
-    grep -q -- "$1" "$out/ui.xml" && return 0
-    if [ "$2" = down ]; then
-      adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300
-    else
-      adb shell input swipe $((w / 2)) $((h / 4)) $((w / 2)) $((h * 3 / 4)) 300
-    fi
-    sleep 1; dump
-  done
-  grep -q -- "$1" "$out/ui.xml"
 }
 live=0
 [ -n "${S3_TEST_ACCESS_KEY_ID:-}" ] && [ -n "${S3_TEST_SECRET_KEY:-}" ] && live=1

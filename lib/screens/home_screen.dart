@@ -9,6 +9,7 @@ import '../services/gestures.dart';
 import '../services/home_grid.dart';
 import '../services/launcher_controller.dart';
 import '../widgets/app_icon.dart';
+import '../widgets/matched_text.dart';
 import 'settings_screen.dart';
 import 'stats_screen.dart';
 import 'sync_screen.dart';
@@ -796,25 +797,11 @@ class _ResultTile extends StatelessWidget {
     final theme = Theme.of(context);
     final body = theme.textTheme.bodyLarge!;
     final base = body.copyWith(fontSize: (body.fontSize ?? 16) * scale);
-    final hit = base.copyWith(fontWeight: FontWeight.bold, color: theme.colorScheme.primary);
-    final title = result.title;
-    // One span per run of matched or unmatched letters, not per letter.
-    final marked = result.positions.toSet();
-    final spans = <TextSpan>[];
-    for (var start = 0; start < title.length;) {
-      final hitRun = marked.contains(start);
-      var end = start + 1;
-      while (end < title.length && marked.contains(end) == hitRun) {
-        end++;
-      }
-      spans.add(TextSpan(text: title.substring(start, end), style: hitRun ? hit : base));
-      start = end;
-    }
     final owner = result.owner!;
     return ListTile(
       key: ValueKey(result.app != null ? owner.key : '${owner.key}:${result.shortcut!.id}'),
       leading: showIcon ? AppIcon(app: owner, cache: icons, size: result.shortcut == null ? 40 : 28) : null,
-      title: Text.rich(TextSpan(children: spans), maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: MatchedText(result.title, positions: result.positions, style: base),
       subtitle: result.shortcut != null ? Text(owner.label) : null,
       trailing: owner.isPair
           ? const Icon(Icons.vertical_split_outlined, size: 18)

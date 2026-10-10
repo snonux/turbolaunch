@@ -295,6 +295,26 @@ class LauncherController extends ChangeNotifier {
       if (m == null) continue;
       scored.add((m.score - 1, counts[owner.key] ?? 0, SearchResult.shortcut(s, owner, positions: m.positions)));
     }
+    return _ranked(scored);
+  }
+
+  /// [apps] matching [query], ranked the way search ranks them, for pickers
+  /// such as the app pair one. An empty query keeps every app in its order.
+  List<SearchResult> rankApps(String query, Iterable<AppEntry> apps) {
+    final q = query.trim();
+    if (q.isEmpty) return [for (final a in apps) SearchResult.app(a)];
+    final folded = foldForSearch(q);
+    final counts = totals;
+    final scored = <(int, int, SearchResult)>[];
+    for (final a in apps) {
+      final m = fuzzyMatch(q, a.label, foldedQuery: folded, foldedText: _fold(a.label));
+      if (m != null) scored.add((m.score, counts[a.key] ?? 0, SearchResult.app(a, positions: m.positions)));
+    }
+    return _ranked(scored);
+  }
+
+  /// Best score first, then the more-launched, then by name.
+  static List<SearchResult> _ranked(List<(int, int, SearchResult)> scored) {
     scored.sort((a, b) {
       if (a.$1 != b.$1) return b.$1.compareTo(a.$1);
       if (a.$2 != b.$2) return b.$2.compareTo(a.$2);

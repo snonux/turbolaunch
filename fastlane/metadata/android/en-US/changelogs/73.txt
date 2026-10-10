@@ -1,0 +1,1 @@
+Choosing the apps for an app pair now uses the same fuzzy search as the home screen: type a few letters, Enter takes the best match.

@@ -298,6 +298,27 @@ void main() {
     expect(find.textContaining('Opened Maps only'), findsOneWidget);
   });
 
+  testWidgets('the app pair pickers use the fuzzy search', (tester) async {
+    await start(tester);
+    await openSettings(tester);
+    await scrollTo(tester, find.byKey(const Key('pair-first')));
+    await tester.tap(find.byKey(const Key('pair-first')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('pair-search')), findsOneWidget);
+    expect(find.byKey(ValueKey('pick-${app('Calendar').key}')), findsOneWidget);
+
+    await tester.enterText(find.byKey(const Key('pair-search')), 'mu');
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('pick-${app('Music').key}')), findsOneWidget);
+    expect(find.byKey(ValueKey('pick-${app('Calendar').key}')), findsNothing);
+    expect(find.byKey(ValueKey('pick-${app('Maps').key}')), findsNothing);
+
+    await tester.testTextInput.receiveAction(TextInputAction.go);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('pair-search')), findsNothing, reason: 'Enter takes the best match');
+    expect(find.descendant(of: find.byKey(const Key('pair-first')), matching: find.text('Music')), findsOneWidget);
+  });
+
   testWidgets('a saved app pair is searchable, opens both apps, earns a cell and can be deleted', (tester) async {
     source.serviceEnabled = true;
     await start(tester);

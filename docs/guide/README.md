@@ -165,7 +165,8 @@ opens the accessibility settings.
 An app pair opens two apps in split screen, one above the other, with one
 tap. Make one in settings under **App pairs**: pick a **Top app** and a
 **Bottom app**, give it a name if you like, and **Save pair**. **Try it**
-opens them without saving.
+opens them without saving. Each field opens a search that finds apps the
+same way as the home screen's; Enter takes the best match.
 
 A saved pair is an app of its own: it shows up in search, counts its
 launches and earns a home cell like any app. If you uninstall one of its

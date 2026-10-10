@@ -7,7 +7,7 @@
              Accessibility. Used only for global actions: split screen for app
              pairs, locking the screen on a double-tap, pulling down the
              notification shade or quick settings, and the recent apps, power
-             menu or screenshot a swipe gesture asks for. It reads
+             menu or screenshot a swipe gesture or the Screenshot tile asks for. It reads
              no window content and receives no events. -->
         <service
             android:name="org.buetow.turbolaunch.TurboLaunchAccessibilityService"
@@ -20,6 +20,18 @@
             <meta-data
                 android:name="android.accessibilityservice"
                 android:resource="@xml/turbolaunch_accessibility" />
+        </service>
+        <!-- Quick settings tile that takes a screenshot of whatever app is open,
+             through the accessibility service above. -->
+        <service
+            android:name="org.buetow.turbolaunch.ScreenshotTileService"
+            android:exported="true"
+            android:icon="@drawable/turbolaunch_tile_screenshot"
+            android:label="@string/turbolaunch_tile_screenshot"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
         </service>
     </application>
 </manifest>

@@ -249,12 +249,17 @@ draw_down_right() { # x y: start; strokes of 300 px in 30 px steps, one touch
 }
 tap_on "TurboLaunch settings" && sleep 3
 dump
+# The list first, then on to the button below it (one scroll can pass both).
 for _ in 1 2 3 4 5 6 7 8; do
-  grep -q 'Record a gesture' "$out/ui.xml" && break
+  grep -q 'Swipe up' "$out/ui.xml" && break
   adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300; sleep 1; dump
 done
 shot settings_gestures
 expect_ui "gestures listed in settings" 'Swipe up'
+for _ in 1 2 3 4; do
+  grep -q 'Record a gesture' "$out/ui.xml" && break
+  adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300; sleep 1; dump
+done
 tap_on "Record a gesture" && sleep 2
 draw_down_right $((w / 3)) $((h * 3 / 10))
 sleep 2; dump; shot gesture_recorded

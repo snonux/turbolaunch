@@ -17,6 +17,7 @@
 #
 #   tool/e2e_android.sh build/app/outputs/flutter-apk/app-x86_64-release.apk
 set -euo pipefail
+export SHOTS_TO_LOG=1  # temporary: refresh the guide shots
 cd "$(dirname "$0")/.."
 apk=${1:?usage: tool/e2e_android.sh app.apk}
 app=org.buetow.turbolaunch

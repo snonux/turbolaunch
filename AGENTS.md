@@ -89,7 +89,12 @@ app list, so most work needs no device.
 
 * `MainActivity` is `singleTask` with the HOME category. A Home press while
   the launcher is in front arrives as `onNewIntent`; the plugin forwards it to
-  Dart as the `home` event, which clears the search and pops settings.
+  Dart as the `home` event, which clears the search and pops settings. Home
+  pressed in another app arrives the same way but as `homeReturn` (the
+  launcher has no window focus then), so "Open the keyboard on Home" only
+  opens it for a press on the home screen. Coming back from an app by any
+  route (Back too) closes the search, which Flutter's focus manager would
+  otherwise focus again.
 * The Flutter surface is transparent and the themes set
   `windowShowWallpaper`, so the system wallpaper shows through.
 * App visibility comes from a `<queries>` entry for MAIN/LAUNCHER, so

@@ -187,6 +187,9 @@ class LauncherController extends ChangeNotifier {
   /// Bumped on every Home press, so the UI can drop focus and the keyboard.
   int homePresses = 0;
 
+  /// Whether the last Home press came from another app, not the home screen.
+  bool homeFromApp = false;
+
   /// Apps and app pairs, alphabetical.
   List<AppEntry> get apps => _apps;
 
@@ -892,9 +895,10 @@ class LauncherController extends ChangeNotifier {
     switch (event) {
       case AppSourceEvent.packagesChanged:
         refresh();
-      case AppSourceEvent.homePressed:
+      case AppSourceEvent.homePressed || AppSourceEvent.homeReturned:
         _query = '';
         homePresses++;
+        homeFromApp = event == AppSourceEvent.homeReturned;
         if (_arrangePending) _place(now: true);
         notifyListeners();
         _syncIfDue();

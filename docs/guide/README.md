@@ -224,7 +224,8 @@ bucket, access key ID and secret key, give the phone a name, switch
   that app with its name, so the grid looks the same on every phone.
   Tapping the ghost only says the app is on your other phones; install the
   app and it takes the cell. When every other cell is full, an app of this
-  phone may use a ghost's cell until you install the ghost's app.
+  phone may use a ghost's cell until you install the ghost's app; it is
+  drawn a little grey there.
 * Rows count from the bottom, so phones with more or fewer rows still agree
   on the cells nearest the search box. Small differences between phones are
   normal.

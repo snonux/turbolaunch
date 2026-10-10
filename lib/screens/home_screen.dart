@@ -466,7 +466,7 @@ class _HomeGrid extends StatelessWidget {
             ? (controller.rows, controller.cols)
             : controller.gridSizeFor(auto.rows, auto.cols);
         if (rows == 0 || cols == 0) return const SizedBox.shrink();
-        final grid = controller.grid, ghosts = controller.ghosts;
+        final grid = controller.grid, ghosts = controller.ghosts, borrowed = controller.borrowed;
         return Column(
           key: const Key('home-grid'),
           children: [
@@ -494,6 +494,7 @@ class _HomeGrid extends StatelessWidget {
                                 app: grid[Cell(r, c)]!,
                                 icons: icons,
                                 labelScale: controller.settings.labelScale,
+                                borrowed: borrowed.contains(Cell(r, c)),
                                 onTap: () => controller.launch(grid[Cell(r, c)]!),
                                 onLongPress: () => onLongPress(grid[Cell(r, c)]!),
                               ),
@@ -515,11 +516,15 @@ class _GridCell extends StatelessWidget {
     required this.labelScale,
     required this.onTap,
     required this.onLongPress,
+    this.borrowed = false,
   });
 
   final AppEntry app;
   final IconCache icons;
   final double labelScale;
+
+  /// In a ghost's cell, lent because the grid was full: drawn a little grey.
+  final bool borrowed;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
@@ -535,37 +540,44 @@ class _GridCell extends StatelessWidget {
         onLongPress: onLongPress,
         // Scales down rather than overflowing while the keyboard squeezes the grid.
         child: LayoutBuilder(
-          builder: (context, box) => FittedBox(
-            fit: BoxFit.scaleDown,
-            child: SizedBox(
-              width: box.maxWidth,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      AppIcon(app: app, cache: icons, size: 48),
-                      if (app.otherProfile)
-                        const Positioned(right: -4, bottom: -4, child: Icon(Icons.work, size: 16, color: Colors.white)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: Text(
-                      app.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12 * labelScale,
-                        color: Colors.white,
-                        shadows: const [Shadow(blurRadius: 4, color: Colors.black87)],
+          builder: (context, box) => Opacity(
+            opacity: borrowed ? 0.55 : 1,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: SizedBox(
+                width: box.maxWidth,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        AppIcon(app: app, cache: icons, size: 48),
+                        if (app.otherProfile)
+                          const Positioned(
+                            right: -4,
+                            bottom: -4,
+                            child: Icon(Icons.work, size: 16, color: Colors.white),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: Text(
+                        app.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 12 * labelScale,
+                          color: Colors.white,
+                          shadows: const [Shadow(blurRadius: 4, color: Colors.black87)],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

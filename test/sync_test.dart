@@ -241,6 +241,7 @@ void main() {
     expect(b.grid, {const Cell(0, 0): 'news', const Cell(0, 1): 'mail'});
     expect(b.c.ghosts, isEmpty);
     expect(b.store.lent, {const Cell(0, 0): 'org.chat/org.chat.Main'});
+    expect(b.c.borrowed, {const Cell(0, 0)});
     // Installing chat gives the cell back.
     b.source.apps = [mail, news, chat];
     await pumpEventQueue();

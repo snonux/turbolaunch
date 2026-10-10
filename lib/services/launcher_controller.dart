@@ -209,6 +209,10 @@ class LauncherController extends ChangeNotifier {
   /// app's name: the grid draws a ghost there, so it matches the others.
   Map<Cell, String> get ghosts => {for (final e in _ghosts.entries) e.key: ghostLabel(_remote, e.value)};
 
+  /// Ghost cells a local app borrowed because the grid was full; the grid
+  /// draws those apps a little grey.
+  Set<Cell> get borrowed => _lent.keys.toSet();
+
   /// The home grid: which app sits in which cell.
   Map<Cell, AppEntry> get grid {
     final byKey = {for (final a in _apps) a.key: a};

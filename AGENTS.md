@@ -145,7 +145,8 @@ is random, made on first use and never exported.
   outline, taken from the `labels` in the other phone's file. A phone never
   writes its ghosts into its own file. Only when every other cell is taken
   does a local app borrow a ghost cell (Paul, 2026-10-10), kept in `lent`
-  and given back when the ghost's app is installed. Cells lent by 0.2.0
+  and given back when the ghost's app is installed; the borrower is drawn
+  at 55 % opacity so it stands out. Cells lent by 0.2.0
   (which lent even with free cells) are placed again on the first start.
 * Automatic syncs (5 s after start, 30 s after a launch, on Home after
   15 min) fail silently; only Sync now shows errors.

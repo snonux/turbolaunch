@@ -324,10 +324,13 @@ expect_ui "swipe up lists the apps" 'Camera\|Chrome\|Clock'
 adb shell input text "clo"
 sleep 2; dump
 expect_ui "search for clo lists Clock" 'Clock'
-adb shell input swipe $((w / 2)) $((h * 45 / 100)) $((w / 2)) $((h * 15 / 100)) 150
+# From the Clock result, right above the search box and the keyboard.
+read -r cx cy <<<"$(centre "Clock")"
+cy=${cy:-$((h / 3))}; top=$((cy - 200)); [ "$top" -lt 30 ] && top=30
+adb shell input swipe $((w / 2)) "$cy" $((w / 2)) "$top" 150
 sleep 2; shot swipe_up_closes_search; dump
 if grep -o '<node [^>]*resource-id="search"[^>]*>' "$out/ui.xml" | grep -q 'focused="true"\|text="clo"'; then
-  fail "swipe up over the results closes the search"
+  fail "swipe up over the results closes the search (swiped $cy to $top; $(grep -o '<node [^>]*resource-id="search"[^>]*>' "$out/ui.xml"))"
 else
   pass "swipe up over the results closes the search"
 fi
@@ -336,10 +339,13 @@ fi
 tap_on search && sleep 1
 adb shell input text "clo"
 sleep 1
-adb shell am start -a android.settings.SETTINGS >/dev/null
+# A fresh Settings task (-S), so one Back leaves it rather than a sub-page.
+adb shell am start -S -W -a android.settings.SETTINGS >/dev/null
 sleep 3
 adb shell input keyevent KEYCODE_BACK
-sleep 3; shot back_from_app; dump
+sleep 3
+focused | grep -q "$app" || { adb shell input keyevent KEYCODE_BACK; sleep 3; }
+shot back_from_app; dump
 expect_focus "Back from Settings returns to TurboLaunch" "$app"
 if grep -o '<node [^>]*resource-id="search"[^>]*>' "$out/ui.xml" | grep -q 'focused="true"\|text="clo"'; then
   fail "coming back from an app shows home, not the search"

@@ -118,9 +118,12 @@ Long-press an app, on the grid or in the search results:
 * **Remove from home** takes it off the grid and keeps it off. It stays in
   search. **Add to home** brings it back.
 * **Hide** takes it out of search and off the grid. Hidden apps are listed
-  in settings under **Hidden apps**, with **Unhide**.
+  in settings under **Hidden apps**, with **Unhide**. Typing a hidden
+  app's full name still finds it, and its menu then offers **Unhide**.
 * **App info** opens Android's page for the app.
 * **Uninstall** asks Android to remove it.
+
+An app pair's menu has **Delete pair** in place of App info and Uninstall.
 
 ## Gestures
 
@@ -180,7 +183,7 @@ on their own.
 
 ## Settings
 
-![Settings: set as home app, cold start time, launch stats, wallpaper and home grid](images/settings.png)
+![Settings: set as home app, cold start time, launch stats, sync, wallpaper and home grid](images/settings.png)
 
 The sliders button next to the search box opens settings:
 
@@ -188,6 +191,7 @@ The sliders button next to the search box opens settings:
 * **Cold start** shows how long TurboLaunch took from start to its first
   frame.
 * **Launch stats**, see below.
+* **Sync**, see [Sync between phones](#sync-between-phones).
 * **Wallpaper**: pick a picture for the home screen, the lock screen or
   both. The home screen shows Android's wallpaper through it.
 * **Home grid**: columns and rows (Auto, or a number), whether to show the
@@ -204,8 +208,9 @@ Light and dark follow the system setting.
 
 ![Launch stats: launch counts per app and the cell each app sits in](images/stats.png)
 
-How often you launched each app on this phone, and which home cell it
-holds.
+How often you launched each app, most-launched first, and which home cell
+it holds. With [sync](#sync-between-phones) on, the counts are those of all
+your phones, with this phone's share beside each.
 
 ## Moving to a new phone
 
@@ -225,8 +230,10 @@ bucket has them already, under the phone that made them.
 **Settings, Sync** shares launch counts and home cells between your phones
 through an S3 bucket of your own (Garage, MinIO, AWS S3 and others; it
 uses the same client and settings as Quicklog). Fill in the endpoint,
-bucket, access key ID and secret key, give the phone a name, switch
-**Sync between phones** on and tap **Sync now**.
+region, bucket, access key ID and secret key, give the phone a name, switch
+**Sync between phones** on and tap **Sync now**. Below it, **Other
+phones** lists the phones the last sync found, with their launches and
+when they last synced.
 
 * Every phone writes one file of its own, `turbolaunch/devices/<id>.json`,
   and reads the others. Nothing a phone writes is ever overwritten by

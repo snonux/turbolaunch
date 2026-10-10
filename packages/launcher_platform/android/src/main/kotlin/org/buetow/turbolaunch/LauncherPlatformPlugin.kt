@@ -145,7 +145,10 @@ class LauncherPlatformPlugin :
     override fun onDetachedFromActivityForConfigChanges() = onDetachedFromActivity()
 
     override fun onNewIntent(intent: Intent): Boolean {
-        if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) emit("home")
+        if (intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_HOME)) {
+            // Without window focus another app was in front: Home is a return to the launcher.
+            emit(if (activity?.hasWindowFocus() == true) "home" else "homeReturn")
+        }
         return false
     }
 

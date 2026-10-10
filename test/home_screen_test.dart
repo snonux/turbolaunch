@@ -424,6 +424,49 @@ void main() {
     expect(find.byKey(const Key('home-grid')), findsOneWidget);
   });
 
+  testWidgets('coming back from an app shows the home grid, not the search', (tester) async {
+    await start(tester);
+    bool focused() => tester.widget<TextField>(find.byKey(const Key('search'))).focusNode!.hasFocus;
+    Future<void> leaveAndComeBack() async {
+      for (final s in [AppLifecycleState.inactive, AppLifecycleState.hidden, AppLifecycleState.paused]) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+      }
+      await tester.pump();
+      for (final s in [AppLifecycleState.hidden, AppLifecycleState.inactive, AppLifecycleState.resumed]) {
+        tester.binding.handleAppLifecycleStateChanged(s);
+      }
+      await tester.pumpAndSettle();
+    }
+
+    // Left with the search open (by Back, which sends no Home press).
+    await openSearch(tester);
+    await tester.enterText(find.byKey(const Key('search')), 'ma');
+    await tester.pumpAndSettle();
+    await leaveAndComeBack();
+    expect(focused(), isFalse);
+    expect(find.byKey(const Key('home-grid')), findsOneWidget);
+
+    // A pulled-down shade only makes it inactive: the search stays.
+    await openSearch(tester);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    await tester.pump();
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('app-list')), findsOneWidget);
+  });
+
+  testWidgets('"Open the keyboard on Home" opens it on Home, not on the way back from an app', (tester) async {
+    await start(tester, {'settings': '{"keyboardOnHome": true}'});
+    bool focused() => tester.widget<TextField>(find.byKey(const Key('search'))).focusNode!.hasFocus;
+    source.returnHome();
+    await tester.pumpAndSettle();
+    expect(focused(), isFalse);
+    expect(find.byKey(const Key('home-grid')), findsOneWidget);
+    source.pressHome();
+    await tester.pumpAndSettle();
+    expect(focused(), isTrue);
+  });
+
   testWidgets('a swipe over the results that scrolls them, or goes down, keeps the search', (tester) async {
     source = FakeAppSource([for (var i = 0; i < 60; i++) app('App$i')]);
     await start(tester);

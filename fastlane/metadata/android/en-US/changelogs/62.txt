@@ -1,1 +1,1 @@
-A swipe up over the search results closes the search.
+A swipe up over the search results closes the search. Coming back from an app shows the home screen, not the search, also with "Open the keyboard on Home" on.

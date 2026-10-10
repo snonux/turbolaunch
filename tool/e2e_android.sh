@@ -6,7 +6,7 @@
 # the home grid and keeps its cells through a turn to landscape and back,
 # that the long-press menu and quick hide work, that cold start
 # and home-ready times are logged (again after a restart), that a swipe down opens the
-# notification shade, a swipe up the search (and over its results closes it), and a gesture recorded in settings
+# notification shade, a swipe up the search (and over its results closes it, as does leaving for an app and coming back), and a gesture recorded in settings
 # quick settings, that the Screenshot tile shoots the open app, that Sync now works (against a Garage of its own,
 # started by tool/garage_test.sh when Docker runs), that settings sees
 # the accessibility service and shows the launch stats, and that a double-tap on
@@ -330,6 +330,21 @@ if grep -o '<node [^>]*resource-id="search"[^>]*>' "$out/ui.xml" | grep -q 'focu
   fail "swipe up over the results closes the search"
 else
   pass "swipe up over the results closes the search"
+fi
+
+# 9c''. Leaving with the search open and coming back by Back shows home.
+tap_on search && sleep 1
+adb shell input text "clo"
+sleep 1
+adb shell am start -a android.settings.SETTINGS >/dev/null
+sleep 3
+adb shell input keyevent KEYCODE_BACK
+sleep 3; shot back_from_app; dump
+expect_focus "Back from Settings returns to TurboLaunch" "$app"
+if grep -o '<node [^>]*resource-id="search"[^>]*>' "$out/ui.xml" | grep -q 'focused="true"\|text="clo"'; then
+  fail "coming back from an app shows home, not the search"
+else
+  pass "coming back from an app shows home, not the search"
 fi
 adb shell input keyevent KEYCODE_HOME
 sleep 2

@@ -44,7 +44,26 @@ class _HomeScreenState extends State<HomeScreen> {
     // The grid is arranged by launches only while nobody looks at it.
     bool front(AppLifecycleState? s) => s == AppLifecycleState.resumed || s == AppLifecycleState.inactive;
     _c.setInFront(front(WidgetsBinding.instance.lifecycleState));
-    _lifecycle = AppLifecycleListener(onStateChange: (s) => _c.setInFront(front(s)));
+    _lifecycle = AppLifecycleListener(
+      onStateChange: (s) {
+        _c.setInFront(front(s));
+        if (s == AppLifecycleState.hidden || s == AppLifecycleState.paused) _away = true;
+        if (s == AppLifecycleState.resumed && _away) _cameBack();
+      },
+    );
+  }
+
+  /// Whether another app was in front since the home screen last was.
+  bool _away = false;
+
+  /// Coming back from an app (by Back too, which sends no Home press) shows
+  /// the home grid, not the search: Flutter would focus the search box again
+  /// if it had focus when the app was left.
+  void _cameBack() {
+    _away = false;
+    _c.query = '';
+    _focus.unfocus();
+    if (_scroll.hasClients) _scroll.jumpTo(0);
   }
 
   @override
@@ -63,7 +82,9 @@ class _HomeScreenState extends State<HomeScreen> {
       _seenHomePresses = _c.homePresses;
       Navigator.of(context).popUntil((r) => r.isFirst);
       if (_scroll.hasClients) _scroll.jumpTo(0);
-      if (_c.settings.keyboardOnHome) {
+      // The keyboard opens on a Home press on the home screen, not on the
+      // way back from an app.
+      if (_c.settings.keyboardOnHome && !_c.homeFromApp) {
         _focus.requestFocus();
       } else {
         _focus.unfocus();

@@ -73,6 +73,9 @@ enum AppSourceEvent {
 
   /// Home was pressed while the launcher was already in front.
   homePressed,
+
+  /// Home was pressed in another app, which brings the launcher back.
+  homeReturned,
 }
 
 /// Everything the UI needs from the device. [PlatformAppSource] talks to
@@ -136,6 +139,7 @@ class PlatformAppSource implements AppSource {
       .map(
         (e) => switch (e) {
           'home' => AppSourceEvent.homePressed,
+          'homeReturn' => AppSourceEvent.homeReturned,
           _ => AppSourceEvent.packagesChanged,
         },
       )
@@ -247,6 +251,9 @@ class FakeAppSource implements AppSource {
   }
 
   void pressHome() => _events.add(AppSourceEvent.homePressed);
+
+  /// Home pressed in another app, which brings the launcher back.
+  void returnHome() => _events.add(AppSourceEvent.homeReturned);
 
   @override
   Stream<AppSourceEvent> get events => _events.stream;

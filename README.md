@@ -17,6 +17,10 @@ feature with screenshots and a short recording.
 
 ## Highlights
 
+* The same home grid on all your phones: launch counts add up across them,
+  and the most-launched apps get the same cells everywhere, synced through
+  your own S3 bucket (Garage, MinIO, AWS); an app a phone lacks keeps its
+  cell as a faded ghost
 * fzf-style search: letters in order, gaps allowed, so "orgm" finds Organic
   Maps; matched letters highlighted; Enter launches the top match
 * A home grid that fills itself with your most-launched apps, nearest the
@@ -34,8 +38,6 @@ feature with screenshots and a short recording.
 * Home and lock screen wallpapers, grid size and three font sizes in settings
 * Work profile apps included, with a badge (greyed while work apps are paused)
 * Export and import of everything as one JSON file, for a new phone
-* Optional sync of launch counts and home cells between your phones through
-  your own S3 bucket (Garage, MinIO, AWS)
 
 ## Install
 

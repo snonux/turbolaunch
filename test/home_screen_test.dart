@@ -432,7 +432,7 @@ void main() {
     final maps = tester.getTopLeft(find.byKey(const ValueKey('stat-org.example.maps/org.example.maps.Main#0')));
     final music = tester.getTopLeft(find.byKey(const ValueKey('stat-org.example.music/org.example.music.Main#0')));
     expect(maps.dy, lessThan(music.dy), reason: 'most-launched first');
-    expect(find.textContaining('Home row 1, column 1'), findsOneWidget);
+    expect(find.textContaining('Home row 1, column'), findsNWidgets(2));
   });
 
   testWidgets('settings export and import round-trip, a bad file changes nothing', (tester) async {

@@ -83,7 +83,40 @@ void main() {
     expect(source.launched, isEmpty);
   });
 
-  test('launched apps fill the grid from the bottom row and stay put', () async {
+  test('arranged by launches: the most launched bottom right, an overtaken app moves left', () async {
+    final music = c.apps.firstWhere((a) => a.label == 'Music');
+    final cal = c.apps.firstWhere((a) => a.label == 'Calendar');
+    await c.launch(music);
+    expect(c.grid, {const Cell(1, 1): music});
+    await c.launch(cal);
+    await c.launch(cal);
+    expect(c.grid, {const Cell(1, 1): cal, const Cell(1, 0): music});
+  });
+
+  test('with the home screen in front, the arrangement waits until it is left or Home is pressed', () async {
+    final music = c.apps.firstWhere((a) => a.label == 'Music');
+    final cal = c.apps.firstWhere((a) => a.label == 'Calendar');
+    await c.launch(music);
+    c.setInFront(true);
+    await c.launch(cal);
+    await c.launch(cal);
+    expect(c.grid, {const Cell(1, 1): music}, reason: 'nothing moves under a finger');
+    c.setInFront(false);
+    expect(c.grid, {const Cell(1, 1): cal, const Cell(1, 0): music});
+    c.setInFront(true);
+    await c.launch(music);
+    await c.launch(music);
+    expect(c.grid[const Cell(1, 1)], cal);
+    source.pressHome();
+    await pumpEventQueue();
+    expect(c.grid, {const Cell(1, 1): music, const Cell(1, 0): cal});
+    c.setHidden(music, true);
+    expect(c.grid, {const Cell(1, 0): cal}, reason: 'a hidden app leaves at once');
+  });
+
+  test('turned off, launched apps fill the grid from the bottom row and stay put', () async {
+    c.updateSettings(c.settings.copyWith(autoArrange: false));
+    c.setAutoGridSize(2, 2);
     final music = c.apps.firstWhere((a) => a.label == 'Music');
     final cal = c.apps.firstWhere((a) => a.label == 'Calendar');
     await c.launch(music);
@@ -101,7 +134,7 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     final saved = {for (final k in prefs.getKeys()) k: prefs.get(k)!};
     final again = await start(saved);
-    expect(again.grid, {const Cell(1, 0): music});
+    expect(again.grid, {const Cell(1, 1): music});
     expect(again.counts[music.key], 1);
     expect(again.hidden, {'org.example.notes/org.example.notes.Main#0'});
     again.dispose();
@@ -114,7 +147,7 @@ void main() {
     await c.launch(music);
     expect(c.grid, isEmpty);
     c.pinToHome(music);
-    expect(c.grid, {const Cell(1, 0): music});
+    expect(c.grid, {const Cell(1, 1): music});
   });
 
   test('hidden apps leave the grid and the list but match an exact search', () async {
@@ -164,6 +197,8 @@ void main() {
     expect((back.gridRows, back.labelScale, back.keyboardOnHome), (3, 1.4, true));
     expect(LauncherSettings.fromJson({'labelScale': 9, 'gridCols': 99}).labelScale, LauncherSettings.maxScale);
     expect(LauncherSettings.fromJson({'gridCols': 99}).gridCols, 12);
+    expect(LauncherSettings.fromJson({}).autoArrange, isTrue, reason: 'on by default, also for older files');
+    expect(LauncherSettings.fromJson(s.copyWith(autoArrange: false).toJson()).autoArrange, isFalse);
   });
 
   test('AppEntry exposes the package name of its key', () {
@@ -230,7 +265,7 @@ void main() {
     source.fileToOpen = file;
     expect(await other.importSettings(), isTrue);
     other.setAutoGridSize(2, 2);
-    expect(other.grid, {const Cell(1, 0): music});
+    expect(other.grid, {const Cell(1, 2): music});
     expect(other.pairs.single.name, 'maps + Music');
     expect(other.hidden, {'org.example.notes/org.example.notes.Main#0'});
     expect((other.settings.gridCols, other.settings.doubleTapLock), (3, false));

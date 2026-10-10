@@ -53,7 +53,17 @@ rejects 25+).
 
 ### Home grid rules
 
-Cells are `(row, col)`. A placed app keeps its cell; only uninstalling it,
+By default (`autoArrange`, Paul, 2026-10-10) the grid is arranged by
+launches (`arrangeHome`): the most-launched app bottom right, then
+leftwards, then the row above, ties by sync key so phones agree. With sync
+it ranks by the summed counts, and an app the other phones show in a cell
+but this phone lacks keeps its ranked cell as a ghost. Apps with no
+launches put there by "Add to home" come after the ranked ones. Icons move
+only while the home screen is not in front (`setInFront`, from the app
+lifecycle) or on a Home press, never under a finger; until then a pass only
+drops apps that left the grid.
+
+With the setting off: a placed app keeps its cell; only uninstalling it,
 hiding it, "Remove from home", or shrinking the grid below its cell frees
 the cell. Free cells go to the most-launched apps without one, bottom row
 first, left to right, ties by key so phones agree. "Remove from home" keeps
@@ -143,6 +153,10 @@ is random, made on first use and never exported.
   serial, plus `#work` for another profile; pairs map both halves.
 * Cells in the file count rows from the bottom.
 * Counts are summed (`totals`); `counts` stays this phone's own.
+* Arranged by launches (the default), every phone ranks by the summed
+  counts, so the grids match without taking anything over; an app missing
+  here keeps its ranked cell as a ghost. The rest of this list applies with
+  the setting off.
 * The first sync that finds other phones takes over the grid of the phone
   with the most launches, if that is another one (Paul, 2026-10-09). After
   that `placeHome` keeps placed icons; an unplaced app goes to its shared

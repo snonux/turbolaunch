@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _focus = FocusNode();
   final _scroll = ScrollController();
   int _seenHomePresses = 0;
+  late final AppLifecycleListener _lifecycle;
 
   LauncherController get _c => widget.controller;
   bool get _searching => _focus.hasFocus || _c.query.isNotEmpty;
@@ -38,11 +39,16 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _c.addListener(_onController);
     _focus.addListener(() => setState(() {}));
+    // The grid is arranged by launches only while nobody looks at it.
+    bool front(AppLifecycleState? s) => s == AppLifecycleState.resumed || s == AppLifecycleState.inactive;
+    _c.setInFront(front(WidgetsBinding.instance.lifecycleState));
+    _lifecycle = AppLifecycleListener(onStateChange: (s) => _c.setInFront(front(s)));
   }
 
   @override
   void dispose() {
     _c.removeListener(_onController);
+    _lifecycle.dispose();
     _search.dispose();
     _focus.dispose();
     _scroll.dispose();

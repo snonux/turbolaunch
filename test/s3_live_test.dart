@@ -75,12 +75,14 @@ void main() {
     }
     expect(a.otherPhones.map((d) => d.label).toSet(), {'B', 'C'});
     expect(a.totals, {mail.key: 3, maps.key: 9, chat.key: 1});
-    // B has the most launches: A takes over its grid, C shows a ghost of maps.
-    expect(a.grid[const Cell(3, 0)]?.label, 'maps');
-    expect(b.grid[const Cell(3, 0)]?.label, 'maps');
-    expect(c.grid[const Cell(3, 0)], isNull);
-    expect(c.ghosts[const Cell(3, 0)], 'maps');
-    expect(c.grid.values.map((e) => e.label), contains('mail'));
+    // Arranged by the summed counts (maps 9, mail 3, chat 1) from the bottom
+    // right; an app a phone lacks shows as a ghost in its cell.
+    Map<Cell, String> grid(LauncherController p) => p.grid.map((cell, e) => MapEntry(cell, e.label));
+    expect(grid(a), {const Cell(3, 3): 'maps', const Cell(3, 2): 'mail', const Cell(3, 1): 'chat'});
+    expect(grid(b), {const Cell(3, 3): 'maps', const Cell(3, 2): 'mail'});
+    expect(b.ghosts, {const Cell(3, 1): 'chat'});
+    expect(grid(c), {const Cell(3, 2): 'mail', const Cell(3, 1): 'chat'});
+    expect(c.ghosts, {const Cell(3, 3): 'maps'});
     final client = MinioS3ObjectClient(config.s3);
     expect(await client.listKeys(prefix: prefix), hasLength(3));
   }, skip: keyId.isEmpty || secret.isEmpty ? 'S3_TEST_ACCESS_KEY_ID and S3_TEST_SECRET_KEY are not set' : false);

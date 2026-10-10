@@ -126,12 +126,12 @@ class _SyncScreenState extends State<SyncScreen> {
               onChanged: (v) => _save(enabled: v),
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: Text(
               'Each phone writes a file of its own and reads the others. Launch counts add up across phones. '
-              'Icons already on the home screen stay where they are; an app that gets a cell later goes to the '
-              'cell it has on your other phones, and a cell kept for an app this phone lacks shows a ghost of it until you '
+              '${_c.settings.autoArrange ? 'Every phone arranges its home screen by the launches of all phones, so the grids match' : 'Icons already on the home screen stay where they are; an app that gets a cell later goes to the cell it has on your other phones'}, '
+              'and a cell kept for an app this phone lacks shows a ghost of it until you '
               'install it. Automatic syncs fail silently; Sync now tells you what went wrong.',
             ),
           ),

@@ -119,6 +119,29 @@ expect_focus "grid cell launched Settings" "com.android.settings"
 adb shell input keyevent KEYCODE_HOME
 sleep 3
 
+# 5b. Arranged by launches: Settings bottom right; Clock, launched three
+#     times, takes that corner on leaving home and Settings moves left of it.
+dump
+read -r sx sy <<<"$(centre "Settings")"
+if [ -n "${sx:-}" ] && [ "$sx" -gt $((w * 3 / 4)) ]; then pass "Settings bottom right ($sx,$sy)"; else fail "Settings bottom right (at ${sx:-?},${sy:-?})"; fi
+for _ in 1 2 3; do
+  tap_on search && sleep 1
+  adb shell input text "clock"
+  sleep 1
+  adb shell input keyevent KEYCODE_ENTER
+  sleep 4
+  adb shell input keyevent KEYCODE_HOME
+  sleep 3
+done
+dump; shot arranged
+read -r cx cy <<<"$(centre "Clock")"
+read -r sx sy <<<"$(centre "Settings")"
+if [ -n "${cx:-}" ] && [ -n "${sx:-}" ] && [ "$cx" -gt $((w * 3 / 4)) ] && [ "$sx" -lt "$cx" ] && [ "$sy" = "$cy" ]; then
+  pass "Clock took the corner, Settings left of it"
+else
+  fail "Clock took the corner, Settings left of it (Clock ${cx:-?},${cy:-?}; Settings ${sx:-?},${sy:-?})"
+fi
+
 # 6. Long-press menu: remove from home.
 dump
 xy=$(centre "Settings")
@@ -148,10 +171,12 @@ tap_on "TurboLaunch settings" && sleep 3
 dump; shot settings
 expect_ui "settings open" 'Set as home app'
 expect_ui "cold start shown" 'ms from process start'
-# Launch stats: Settings was launched twice, by Enter and from its cell.
+# Launch stats: Settings was launched twice, by Enter and from its cell, and
+# Clock three times.
 tap_on "Launch stats" && sleep 2
 dump; shot stats
-expect_ui "stats count the launches" '2 launches on this phone'
+expect_ui "stats count the launches" '5 launches on this phone'
+expect_ui "stats count Settings" 'Settings&#10;Not on home&#10;2'
 adb shell input keyevent KEYCODE_BACK
 sleep 2; dump
 # The gestures section is below the fold; uiautomator only dumps what shows.
@@ -224,12 +249,17 @@ draw_down_right() { # x y: start; strokes of 300 px in 30 px steps, one touch
 }
 tap_on "TurboLaunch settings" && sleep 3
 dump
+# The list first, then on to the button below it (one scroll can pass both).
 for _ in 1 2 3 4 5 6 7 8; do
-  grep -q 'Record a gesture' "$out/ui.xml" && break
+  grep -q 'Swipe up' "$out/ui.xml" && break
   adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300; sleep 1; dump
 done
 shot settings_gestures
 expect_ui "gestures listed in settings" 'Swipe up'
+for _ in 1 2 3 4; do
+  grep -q 'Record a gesture' "$out/ui.xml" && break
+  adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300; sleep 1; dump
+done
 tap_on "Record a gesture" && sleep 2
 draw_down_right $((w / 3)) $((h * 3 / 10))
 sleep 2; dump; shot gesture_recorded

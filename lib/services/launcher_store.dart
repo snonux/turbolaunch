@@ -13,6 +13,7 @@ class LauncherSettings {
   const LauncherSettings({
     this.gridRows = 0,
     this.gridCols = 0,
+    this.autoArrange = true,
     this.labelScale = 1.0,
     this.resultScale = 1.0,
     this.clockScale = 1.0,
@@ -26,6 +27,10 @@ class LauncherSettings {
   /// 0 means automatic, from the screen size.
   final int gridRows;
   final int gridCols;
+
+  /// Arrange the home grid by launches, most-launched bottom right; off keeps
+  /// placed icons where they are.
+  final bool autoArrange;
 
   /// Font size factors on top of the system font size, 0.8 to 1.6.
   final double labelScale;
@@ -53,6 +58,7 @@ class LauncherSettings {
   LauncherSettings copyWith({
     int? gridRows,
     int? gridCols,
+    bool? autoArrange,
     double? labelScale,
     double? resultScale,
     double? clockScale,
@@ -64,6 +70,7 @@ class LauncherSettings {
   }) => LauncherSettings(
     gridRows: gridRows ?? this.gridRows,
     gridCols: gridCols ?? this.gridCols,
+    autoArrange: autoArrange ?? this.autoArrange,
     labelScale: labelScale ?? this.labelScale,
     resultScale: resultScale ?? this.resultScale,
     clockScale: clockScale ?? this.clockScale,
@@ -77,6 +84,7 @@ class LauncherSettings {
   Map<String, Object> toJson() => {
     'gridRows': gridRows,
     'gridCols': gridCols,
+    'autoArrange': autoArrange,
     'labelScale': labelScale,
     'resultScale': resultScale,
     'clockScale': clockScale,
@@ -93,6 +101,7 @@ class LauncherSettings {
     return LauncherSettings(
       gridRows: size(j['gridRows']),
       gridCols: size(j['gridCols']),
+      autoArrange: j['autoArrange'] as bool? ?? true,
       labelScale: scale(j['labelScale']),
       resultScale: scale(j['resultScale']),
       clockScale: scale(j['clockScale']),

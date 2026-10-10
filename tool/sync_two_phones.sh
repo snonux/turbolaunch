@@ -5,8 +5,8 @@
 # sync from the Sync screen:
 #
 #   A launches Settings 3x and Clock 2x, then syncs alone.
-#   B launches Camera 1x, then syncs: it meets A, which has more launches,
-#     so B takes over A's grid (Settings and Clock in the same cells).
+#   B launches Camera 1x, then syncs: both arrange by the summed launches,
+#     so B shows A's grid (Settings and Clock in the same cells).
 #   A syncs again: it keeps its grid and gets Camera in B's cell.
 #   Both stats screens show 6 launches on all phones.
 #   B disables Clock: its cell shows a ghost of Clock (tapping it only says

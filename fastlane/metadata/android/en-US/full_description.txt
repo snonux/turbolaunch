@@ -3,7 +3,7 @@ TurboLaunch is a small, search-first home screen for Android, made for GrapheneO
 Press Home, type two or three letters, hit Enter, and the app opens.
 
 * Fuzzy search like fzf: "orgm" finds Organic Maps, app shortcuts included
-* A home grid that fills itself with your most-launched apps and never moves an icon once placed
+* A home grid arranged by your most-launched apps, the favourite bottom right, or icons that stay put if you prefer
 * The search box always at the bottom, within thumb reach
 * Long-press an app to remove it from home, hide it, see its app info or uninstall it
 * Clock, date and battery; long-press to hide the grid while sharing your screen

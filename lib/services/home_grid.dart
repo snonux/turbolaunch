@@ -1,5 +1,9 @@
 /// The home grid's placement rules, as pure functions over plain data.
 ///
+/// By default the grid is arranged by launches ([arrangeHome]): the
+/// most-launched app sits bottom right, the next one to its left, and so on
+/// up the rows. The rest of this applies when that is turned off.
+///
 /// A cell is a (row, column) pair. Once an app has a cell it keeps it: only
 /// uninstalling the app, removing it by long-press, or shrinking the grid
 /// below its cell frees it. Free cells go to the most-launched apps without a
@@ -44,6 +48,66 @@ List<Cell> fillOrder(int rows, int cols) => [
   for (var r = rows - 1; r >= 0; r--)
     for (var c = 0; c < cols; c++) Cell(r, c),
 ];
+
+/// Cells of a [rows] x [cols] grid in rank order: bottom right first, then
+/// leftwards, then the row above.
+List<Cell> rankOrder(int rows, int cols) => [
+  for (var r = rows - 1; r >= 0; r--)
+    for (var c = cols - 1; c >= 0; c--) Cell(r, c),
+];
+
+/// The grid arranged by launches: apps from [installed] with a count above
+/// zero, most-launched first, take the cells in [rankOrder]. Ties go by
+/// [tieKey] (the sync key, so every phone agrees). Apps that are in
+/// [excluded] get no cell.
+///
+/// [missing] are apps the other phones show that are not installed here,
+/// with their launch counts: they are ranked like the others, and their cells
+/// are returned in `ghosts` (cell to app) instead of `slots`, so the grid
+/// looks the same on every phone.
+///
+/// An app in [slots] (the current placement) with no launches, put there by
+/// "Add to home", keeps a cell after the ranked apps.
+({Map<Cell, String> slots, Map<Cell, String> ghosts}) arrangeHome({
+  required int rows,
+  required int cols,
+  required Set<String> installed,
+  required Map<String, int> counts,
+  Set<String> excluded = const {},
+  Map<Cell, String> slots = const {},
+  Map<String, int> missing = const {},
+  String Function(String key)? tieKey,
+}) {
+  int count(String k) => installed.contains(k) ? counts[k] ?? 0 : missing[k] ?? 0;
+  final tie = tieKey ?? (k) => k;
+  final ranked =
+      <String>[
+        ...installed.where((k) => !excluded.contains(k) && (counts[k] ?? 0) > 0),
+        ...missing.keys.where((k) => !installed.contains(k) && !excluded.contains(k) && (missing[k] ?? 0) > 0),
+      ]..sort((a, b) {
+        final byCount = count(b).compareTo(count(a));
+        return byCount != 0 ? byCount : tie(a).compareTo(tie(b));
+      });
+  final order = rankOrder(rows, cols);
+  final position = {for (var i = 0; i < order.length; i++) order[i]: i};
+  final added =
+      slots.entries
+          .where(
+            (e) =>
+                position.containsKey(e.key) &&
+                installed.contains(e.value) &&
+                !excluded.contains(e.value) &&
+                (counts[e.value] ?? 0) <= 0,
+          )
+          .toList()
+        ..sort((a, b) => position[a.key]!.compareTo(position[b.key]!));
+  final keys = <String>{...ranked, for (final e in added) e.value}.toList();
+  final result = <Cell, String>{}, ghosts = <Cell, String>{};
+  for (var i = 0; i < keys.length && i < order.length; i++) {
+    (installed.contains(keys[i]) ? result : ghosts)[order[i]] = keys[i];
+  }
+  return (slots: result, ghosts: ghosts);
+}
 
 /// Returns the new placement; see [placeHome].
 Map<Cell, String> placeApps({

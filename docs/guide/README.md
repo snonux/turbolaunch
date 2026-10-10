@@ -145,6 +145,15 @@ icon.
 Locking, recent apps, the power menu, screenshots and split screen need the
 accessibility service, see [Privacy and permissions](#privacy-and-permissions).
 
+### Screenshots of any app
+
+TurboLaunch adds a **Screenshot** tile to quick settings. Add it once by
+editing the tiles (the pencil in the pulled-down quick settings), then, in
+any app, pull down quick settings and tap **Screenshot**: the shade closes
+and the screen behind it is saved like a screenshot taken with the buttons.
+The tile needs the accessibility service too; with it off, tapping the tile
+opens the accessibility settings.
+
 ## App pairs
 
 An app pair opens two apps in split screen, one above the other, with one
@@ -271,7 +280,7 @@ service** line in TurboLaunch's settings takes you there). It only performs
 system actions: lock the screen on a double-tap, pull down the
 notifications or quick settings, switch into split screen for an app pair,
 and open recent apps, the power menu or take a screenshot when a gesture you
-set up asks for it. It reads no
+set up or the Screenshot tile asks for it. It reads no
 screen content and sees nothing you type.
 
 ## Building it yourself

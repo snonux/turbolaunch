@@ -103,6 +103,12 @@ app list, so most work needs no device.
   Recents, power menu, screenshot and split screen need the service. The
   flashlight uses `CameraManager.setTorchMode` (no permission); its torch
   callback is registered on the first toggle, not at start.
+* `ScreenshotTileService` is a quick settings tile: it closes the shade
+  (`GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE`, else the hidden
+  `collapsePanels`), waits `SHADE_CLOSE_MILLIS` and asks the service for
+  `GLOBAL_ACTION_TAKE_SCREENSHOT`, so it shoots whatever app is open. With
+  the service off it opens the accessibility settings. The e2e adds and
+  clicks it with `cmd statusbar add-tile` and `click-tile`.
 * Only empty cells listen for double-taps, because a double-tap detector
   holds single taps back for 300 ms; taps on apps stay instant.
 * Icons are rendered once and kept as PNGs in the cache dir

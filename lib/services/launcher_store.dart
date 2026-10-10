@@ -19,6 +19,7 @@ class LauncherSettings {
     this.clockScale = 1.0,
     this.keyboardOnHome = false,
     this.showClock = true,
+    this.showBattery = false,
     this.iconsInResults = true,
     this.doubleTapLock = true,
     this.gestures = Gestures.defaults,
@@ -40,6 +41,9 @@ class LauncherSettings {
   /// Open the keyboard on every Home press instead of on a tap in the search box.
   final bool keyboardOnHome;
   final bool showClock;
+
+  /// Battery percent on the clock line. Off by default; Android already shows it.
+  final bool showBattery;
   final bool iconsInResults;
 
   /// Double-tap on empty home space locks the phone (needs the accessibility service).
@@ -64,6 +68,7 @@ class LauncherSettings {
     double? clockScale,
     bool? keyboardOnHome,
     bool? showClock,
+    bool? showBattery,
     bool? iconsInResults,
     bool? doubleTapLock,
     Map<String, String>? gestures,
@@ -76,6 +81,7 @@ class LauncherSettings {
     clockScale: clockScale ?? this.clockScale,
     keyboardOnHome: keyboardOnHome ?? this.keyboardOnHome,
     showClock: showClock ?? this.showClock,
+    showBattery: showBattery ?? this.showBattery,
     iconsInResults: iconsInResults ?? this.iconsInResults,
     doubleTapLock: doubleTapLock ?? this.doubleTapLock,
     gestures: gestures ?? this.gestures,
@@ -90,6 +96,7 @@ class LauncherSettings {
     'clockScale': clockScale,
     'keyboardOnHome': keyboardOnHome,
     'showClock': showClock,
+    'showBattery': showBattery,
     'iconsInResults': iconsInResults,
     'doubleTapLock': doubleTapLock,
     'gestures': gestures,
@@ -107,6 +114,7 @@ class LauncherSettings {
       clockScale: scale(j['clockScale']),
       keyboardOnHome: j['keyboardOnHome'] as bool? ?? false,
       showClock: j['showClock'] as bool? ?? true,
+      showBattery: j['showBattery'] as bool? ?? false,
       iconsInResults: j['iconsInResults'] as bool? ?? true,
       doubleTapLock: j['doubleTapLock'] as bool? ?? true,
       gestures: _gestures(j),

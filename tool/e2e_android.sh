@@ -59,6 +59,25 @@ tap_on() {
   echo "  tap '$1' at $xy"
   adb shell input tap $xy
 }
+# Exit 0 if a \d+% text node sits inside the clock-line bounds; 1 if not; 2 if no clock.
+clock_battery_present() {
+  python3 - "$out/ui.xml" <<'PY'
+import re, sys
+xml = open(sys.argv[1]).read()
+clock = re.search(r'resource-id="clock-line"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+if not clock:
+    sys.exit(2)
+x1, y1, x2, y2 = map(int, clock.groups())
+for node in re.findall(r'<node [^>]*>', xml):
+    attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', node))
+    if not re.fullmatch(r'\d+%', attrs.get('text', '')):
+        continue
+    bx1, by1, bx2, by2 = map(int, re.findall(r'\d+', attrs['bounds']))
+    if x1 <= bx1 and y1 <= by1 and bx2 <= x2 and by2 <= y2:
+        sys.exit(0)
+sys.exit(1)
+PY
+}
 
 adb wait-for-device
 adb shell 'while [ "$(getprop sys.boot_completed)" != 1 ]; do sleep 2; done'
@@ -81,7 +100,13 @@ read -r w h < <(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | tr x ' '
 dump; shot home
 expect_focus "home screen is TurboLaunch" "$app"
 expect_ui "search box shown" 'resource-id="search"'
-expect_ui "clock line shows the battery" '[0-9]%'
+expect_ui "clock line shown" 'resource-id="clock-line"'
+# Battery is off by default (Android already shows it); no percent under the clock node.
+ec=0; clock_battery_present || ec=$?; case $ec in
+  0) fail "clock line hides the battery by default" ;;
+  1) pass "clock line hides the battery by default" ;;
+  *) fail "clock line hides the battery by default (clock-line missing)" ;;
+esac
 timings() {
   for what in 'cold start' 'home ready'; do
     if adb logcat -d | grep -q "TurboLaunch $what: [0-9]* ms"; then
@@ -179,7 +204,39 @@ expect_ui "stats count the launches" '5 launches on this phone'
 expect_ui "stats count Settings" 'Settings&#10;Not on home&#10;2'
 adb shell input keyevent KEYCODE_BACK
 sleep 2; dump
+# Optional battery on the clock line (off by default).
+for _ in 1 2 3 4 5 6; do
+  grep -q 'Battery on the clock line' "$out/ui.xml" && break
+  adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300; sleep 1; dump
+done
+expect_ui "battery toggle listed" 'Battery on the clock line'
+tap_on "Battery on the clock line" && sleep 1
+adb shell input keyevent KEYCODE_BACK
+sleep 2; dump
+expect_ui "Back returns home with battery on" 'resource-id="search"'
+ec=0; clock_battery_present || ec=$?; case $ec in
+  0) pass "clock line shows the battery when enabled" ;;
+  1) fail "clock line shows the battery when enabled" ;;
+  *) fail "clock line shows the battery when enabled (clock-line missing)" ;;
+esac
+# Turn it off again so later restart / shots keep the default (off) home screen.
+tap_on "TurboLaunch settings" && sleep 3
+dump
+for _ in 1 2 3 4 5 6; do
+  grep -q 'Battery on the clock line' "$out/ui.xml" && break
+  adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300; sleep 1; dump
+done
+tap_on "Battery on the clock line" && sleep 1
+adb shell input keyevent KEYCODE_BACK
+sleep 2; dump
+ec=0; clock_battery_present || ec=$?; case $ec in
+  0) fail "clock line hides the battery after turning the toggle off" ;;
+  1) pass "clock line hides the battery after turning the toggle off" ;;
+  *) fail "clock line hides the battery after turning the toggle off (clock-line missing)" ;;
+esac
 # The gestures section is below the fold; uiautomator only dumps what shows.
+tap_on "TurboLaunch settings" && sleep 3
+dump
 for _ in 1 2 3 4 5 6; do
   grep -q 'Accessibility service' "$out/ui.xml" && break
   adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300; sleep 1; dump

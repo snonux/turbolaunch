@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -71,8 +72,54 @@ void main() {
     await start(tester);
     expect(find.byKey(const Key('home-grid')), findsOneWidget);
     expect(find.byKey(const Key('clock-line')), findsOneWidget);
-    expect(find.text('87%'), findsOneWidget);
+    expect(find.text('87%'), findsNothing, reason: 'battery is off by default');
     expect(find.text('Maps'), findsNothing, reason: 'never-launched apps get no cell');
+  });
+
+  testWidgets('settings can show the battery on the clock line', (tester) async {
+    await start(tester);
+    expect(find.text('87%'), findsNothing);
+    expect(source.batteryCalls, 0, reason: 'no battery reads while the toggle is off');
+    await openSettings(tester);
+    await scrollTo(tester, find.byKey(const Key('show-battery')));
+    await tester.tap(find.byKey(const Key('show-battery')));
+    await tester.pumpAndSettle();
+    source.pressHome();
+    await tester.pumpAndSettle();
+    expect(find.text('87%'), findsOneWidget);
+    expect(source.batteryCalls, greaterThan(0));
+
+    await openSettings(tester);
+    await scrollTo(tester, find.byKey(const Key('show-battery')));
+    await tester.tap(find.byKey(const Key('show-battery')));
+    await tester.pumpAndSettle();
+    source.pressHome();
+    await tester.pumpAndSettle();
+    expect(find.text('87%'), findsNothing, reason: 'turning the toggle off hides the percent again');
+  });
+
+  testWidgets('persisted showBattery true shows the percent on a cold start', (tester) async {
+    await start(tester, {'settings': '{"showBattery": true}'});
+    expect(find.text('87%'), findsOneWidget);
+  });
+
+  testWidgets('battery toggle needs the clock line', (tester) async {
+    await start(tester);
+    await openSettings(tester);
+    await scrollTo(tester, find.byKey(const Key('show-clock')));
+    await tester.tap(find.byKey(const Key('show-clock')));
+    await tester.pumpAndSettle();
+    await scrollTo(tester, find.byKey(const Key('show-battery')));
+    expect(find.text('Turn on the clock line first'), findsOneWidget);
+    final tile = tester.widget<SwitchListTile>(find.byKey(const Key('show-battery')));
+    expect(tile.onChanged, isNull);
+    expect(tile.value, isFalse);
+    await tester.tap(find.byKey(const Key('show-battery')));
+    await tester.pumpAndSettle();
+    expect(tester.widget<SwitchListTile>(find.byKey(const Key('show-battery'))).value, isFalse);
+    final raw = (await SharedPreferences.getInstance()).getString('settings');
+    final json = raw == null ? <String, Object?>{} : Map<String, Object?>.from(jsonDecode(raw) as Map);
+    expect(LauncherSettings.fromJson(json).showBattery, isFalse);
   });
 
   testWidgets('tapping the search box lists every app; tapping one launches it and puts it on the grid', (

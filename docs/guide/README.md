@@ -44,11 +44,12 @@ so you can always switch back the same way.
 
 ## The home screen
 
-![The home screen: time, date and battery on top, a grid of apps near the bottom, the search box below](images/home.png)
+![The home screen: time and date on top, a grid of apps near the bottom, the search box below](images/home.png)
 
 From top to bottom:
 
-* **The clock line**: time, date and battery. Long-press it to hide the
+* **The clock line**: time and date (battery optional in settings; off by
+  default because Android already shows it). Long-press it to hide the
   grid, for example while sharing your screen (see
   [Quick hide](#gestures)).
 * **Your wallpaper**, with empty space you can double-tap to lock the
@@ -189,8 +190,8 @@ The sliders button next to the search box opens settings:
 * **Launch stats**, see below.
 * **Wallpaper**: pick a picture for the home screen, the lock screen or
   both. The home screen shows Android's wallpaper through it.
-* **Home grid**: columns and rows (Auto, or a number), and whether to show
-  the clock line.
+* **Home grid**: columns and rows (Auto, or a number), whether to show the
+  clock line, and whether to show the battery on it (off by default).
 * **Search**: open the keyboard on Home, and icons in the search results.
 * **Gestures**: the accessibility service, double-tap to lock, what each
   swipe does, and your own recorded gestures.

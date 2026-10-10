@@ -192,13 +192,16 @@ void main() {
   });
 
   test('settings round-trip and clamp bad values', () {
-    const s = LauncherSettings(gridRows: 3, labelScale: 1.4, keyboardOnHome: true);
+    const s = LauncherSettings(gridRows: 3, labelScale: 1.4, keyboardOnHome: true, showBattery: true);
     final back = LauncherSettings.fromJson(s.toJson());
-    expect((back.gridRows, back.labelScale, back.keyboardOnHome), (3, 1.4, true));
+    expect((back.gridRows, back.labelScale, back.keyboardOnHome, back.showBattery), (3, 1.4, true, true));
     expect(LauncherSettings.fromJson({'labelScale': 9, 'gridCols': 99}).labelScale, LauncherSettings.maxScale);
     expect(LauncherSettings.fromJson({'gridCols': 99}).gridCols, 12);
     expect(LauncherSettings.fromJson({}).autoArrange, isTrue, reason: 'on by default, also for older files');
     expect(LauncherSettings.fromJson(s.copyWith(autoArrange: false).toJson()).autoArrange, isFalse);
+    expect(LauncherSettings.fromJson({}).showBattery, isFalse, reason: 'battery off when the key is absent');
+    expect(LauncherSettings.fromJson({'showBattery': false}).showBattery, isFalse);
+    expect(const LauncherSettings().showBattery, isFalse);
   });
 
   test('AppEntry exposes the package name of its key', () {

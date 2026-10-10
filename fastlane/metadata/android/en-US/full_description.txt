@@ -6,7 +6,7 @@ Press Home, type two or three letters, hit Enter, and the app opens.
 * A home grid arranged by your most-launched apps, the favourite bottom right, or icons that stay put if you prefer
 * The search box always at the bottom, within thumb reach
 * Long-press an app to remove it from home, hide it, see its app info or uninstall it
-* Clock, date and battery; long-press to hide the grid while sharing your screen
+* Clock and date (optional battery, off by default); long-press to hide the grid while sharing your screen
 * Double-tap empty space to lock, swipe down for notifications
 * App pairs: two apps side by side in split screen, one tap away
 * A stats screen showing launch counts and where each app sits

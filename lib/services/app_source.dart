@@ -330,8 +330,13 @@ class FakeAppSource implements AppSource {
     return serviceEnabled ? PairOutcome.split : PairOutcome.noService;
   }
 
+  int batteryCalls = 0;
+
   @override
-  Future<int> battery() async => 87;
+  Future<int> battery() async {
+    batteryCalls++;
+    return 87;
+  }
 
   @override
   Future<bool> uninstall(AppEntry app) async {

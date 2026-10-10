@@ -241,11 +241,31 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             onChanged: (v) => _update(s.copyWith(gridRows: v)),
           ),
           SwitchListTile(
+            key: const Key('auto-arrange'),
+            title: const Text('Arrange by launches'),
+            subtitle: Text(
+              s.autoArrange
+                  ? 'Most launched bottom right, then leftwards and up; icons move when you leave the home screen'
+                  : 'Icons stay where they were placed',
+            ),
+            value: s.autoArrange,
+            onChanged: (v) => _update(s.copyWith(autoArrange: v)),
+          ),
+          SwitchListTile(
             key: const Key('show-clock'),
             title: const Text('Clock line'),
-            subtitle: const Text('Time, date and battery at the top; long-press it to hide the grid'),
+            subtitle: const Text('Time and date at the top; long-press it to hide the grid'),
             value: s.showClock,
             onChanged: (v) => _update(s.copyWith(showClock: v)),
+          ),
+          SwitchListTile(
+            key: const Key('show-battery'),
+            title: const Text('Battery on the clock line'),
+            subtitle: Text(
+              s.showClock ? 'Off by default; Android already shows the battery' : 'Turn on the clock line first',
+            ),
+            value: s.showBattery,
+            onChanged: s.showClock ? (v) => _update(s.copyWith(showBattery: v)) : null,
           ),
           const Divider(),
           _header('Search', text),

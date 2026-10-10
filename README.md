@@ -12,7 +12,7 @@ feature with screenshots and a short recording.
 
 | | |
 |---|---|
-| ![Home screen: clock and battery on top, the most-launched apps near the bottom, the search box below](docs/guide/images/home.png) | ![Typing "clk" and Enter opens Clock](docs/guide/images/search.gif) |
+| ![Home screen: clock on top, the most-launched apps near the bottom, the search box below](docs/guide/images/home.png) | ![Typing "clk" and Enter opens Clock](docs/guide/images/search.gif) |
 | The home screen | Type, Enter, done |
 
 ## Highlights
@@ -23,12 +23,12 @@ feature with screenshots and a short recording.
   cell as a faded ghost
 * fzf-style search: letters in order, gaps allowed, so "orgm" finds Organic
   Maps; matched letters highlighted; Enter launches the top match
-* A home grid that fills itself with your most-launched apps, nearest the
-  thumb first, and never moves an icon once placed
+* A home grid arranged by launches: the most-launched app bottom right,
+  nearest the thumb; or, if you prefer, icons that never move once placed
 * App shortcuts ("New note", "Navigate home") are search results too
 * Search box always on screen at the bottom; Home clears it
 * Long-press an app: remove from or add to home, hide, app info, uninstall
-* Clock, date and battery on top; long-press it to hide the grid (quick hide)
+* Clock and date on top (optional battery, off by default); long-press it to hide the grid (quick hide)
 * Double-tap empty home space to lock; swipe up to search, down for
   notifications; set any swipe, or a gesture you draw, to open an app, the
   flashlight, quick settings and more

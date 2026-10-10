@@ -148,6 +148,15 @@ class LauncherController extends ChangeNotifier {
   /// This phone's counts plus the other phones', by app key.
   Map<String, int>? _totals;
 
+  /// Whether the home screen is in front; see [setInFront].
+  bool _inFront = false;
+
+  /// An arrangement by launches waits for the home screen to be left.
+  bool _arrangePending = false;
+
+  /// The next placement arranges by launches even with the home in front.
+  bool _arrangeNow = false;
+
   /// The last grid height seen, kept while settings reset [_rows].
   int _lastRows = 0;
   String _query = '';
@@ -371,7 +380,19 @@ class LauncherController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _place() {
+  /// Tells the controller whether the home screen is in front. While it is,
+  /// an arrangement by launches waits, so icons never jump under a finger;
+  /// it runs when the home screen is left, or on a Home press.
+  void setInFront(bool front) {
+    if (front == _inFront) return;
+    _inFront = front;
+    if (!front && _arrangePending) {
+      _place(now: true);
+      notifyListeners();
+    }
+  }
+
+  void _place({bool now = false}) {
     if (!_loaded || _rows == 0 || _cols == 0) return;
     // The other phones' cells, with the apps installed here under their app
     // key and the others under their sync key.
@@ -379,6 +400,10 @@ class LauncherController extends ChangeNotifier {
     final shared = _remote.isEmpty
         ? const <Cell, String>{}
         : {for (final e in sharedCells(_remote, _rows).entries) e.key: local(e.value)};
+    if (_settings.autoArrange) {
+      _arrange(shared, now: now || _arrangeNow);
+      return;
+    }
     final next = placeHome(
       slots: _slots,
       rows: _rows,
@@ -398,6 +423,69 @@ class LauncherController extends ChangeNotifier {
       store.setLent(_lent);
     }
     _ghosts = next.ghosts;
+  }
+
+  /// Arranges the grid by launches (see [arrangeHome]); with the home in
+  /// front and not [now], only drops the apps that left the grid and leaves
+  /// the arrangement for later.
+  void _arrange(Map<Cell, String> shared, {required bool now}) {
+    final installed = {for (final a in _apps) a.key};
+    final excluded = {..._excluded, ..._hidden};
+    bool inGrid(Cell c) => c.row < _rows && c.col < _cols;
+    Map<Cell, String> slots;
+    if (_inFront && !now && _slots.isNotEmpty) {
+      slots = {
+        for (final e in _slots.entries)
+          if (inGrid(e.key) && installed.contains(e.value) && !excluded.contains(e.value)) e.key: e.value,
+      };
+      // Nothing moves, but an app that just went away and that the other
+      // phones show leaves its ghost, and an app back again takes its
+      // ghost's cell.
+      final elsewhere = shared.values.toSet();
+      final ghosts = <Cell, String>{
+        for (final e in _ghosts.entries)
+          if (inGrid(e.key) && !slots.containsKey(e.key)) e.key: e.value,
+        for (final e in _slots.entries)
+          if (inGrid(e.key) && !installed.contains(e.value) && elsewhere.contains(_syncKeyOf(e.value)))
+            e.key: _syncKeyOf(e.value),
+      };
+      _ghosts = {};
+      for (final e in ghosts.entries) {
+        final back = _localKeys[e.value];
+        if (back == null) {
+          _ghosts[e.key] = e.value;
+        } else if (!excluded.contains(back) && !slots.containsValue(back)) {
+          slots[e.key] = back;
+        }
+      }
+      _arrangePending = true;
+    } else {
+      final next = arrangeHome(
+        rows: _rows,
+        cols: _cols,
+        installed: installed,
+        counts: totals,
+        excluded: excluded,
+        slots: _slots,
+        missing: {
+          for (final key in shared.values)
+            if (!installed.contains(key)) key: _remoteCounts[key] ?? 0,
+        },
+        tieKey: (key) => _syncKeys[key] ?? key,
+      );
+      slots = next.slots;
+      _ghosts = next.ghosts;
+      _arrangePending = false;
+      _arrangeNow = false;
+    }
+    if (!mapEquals(slots, _slots)) {
+      _slots = slots;
+      store.setSlots(_slots);
+    }
+    if (_lent.isNotEmpty) {
+      _lent = const {};
+      store.setLent(_lent);
+    }
   }
 
   /// Launches [app] (both apps of a pair), counts the launch, and clears the search.
@@ -447,6 +535,8 @@ class LauncherController extends ChangeNotifier {
         if (e.value != app.key) e.key: e.value,
     };
     store.setSlots(_slots);
+    // The icons after it close the gap when the home screen is next left.
+    if (_settings.autoArrange) _place();
     notifyListeners();
   }
 
@@ -454,6 +544,17 @@ class LauncherController extends ChangeNotifier {
   void pinToHome(AppEntry app) {
     _excluded.remove(app.key);
     store.setExcluded(_excluded);
+    if (_settings.autoArrange) {
+      // After the ranked apps; an app with launches moves to its rank later.
+      final free = rankOrder(_rows, _cols).where((c) => !_slots.containsKey(c) && !_ghosts.containsKey(c)).firstOrNull;
+      if (free != null && !_slots.containsValue(app.key)) {
+        _slots = {..._slots, free: app.key};
+        store.setSlots(_slots);
+      }
+      _place();
+      notifyListeners();
+      return;
+    }
     var slots = pinApp(_slots, app.key, _rows, _cols, skip: _ghosts.keys.toSet());
     // With every other cell taken, the app borrows a ghost's cell.
     final ghost = fillOrder(_rows, _cols).where(_ghosts.containsKey).firstOrNull;
@@ -614,12 +715,15 @@ class LauncherController extends ChangeNotifier {
     _lastSync = _clock();
     await store.setRemote(remote);
     await store.setLastSync(_lastSync!);
-    final adopted = remote.isNotEmpty && !store.metOtherPhones && _adoptBusiestGrid(before, rows);
+    // Arranged by launches, the grid already follows the counts of all phones.
+    final adopted =
+        remote.isNotEmpty && !store.metOtherPhones && !_settings.autoArrange && _adoptBusiestGrid(before, rows);
     if (remote.isNotEmpty) await store.setMetOtherPhones(true);
     _place();
     notifyListeners();
-    // The others should see the grid this phone took over at once.
-    if (adopted) await client.putObject(own, utf8.encode(mine().encode()));
+    // The others should see the grid this phone took over or arranged at once.
+    final after = mine();
+    if (adopted || !mapEquals(after.cells, before.cells)) await client.putObject(own, utf8.encode(after.encode()));
   }
 
   /// On the first sync that finds other phones: when one of them has more
@@ -669,6 +773,8 @@ class LauncherController extends ChangeNotifier {
   }
 
   void updateSettings(LauncherSettings s) {
+    // Turned on in settings, the arrangement shows on the way back home.
+    if (s.autoArrange && !_settings.autoArrange) _arrangeNow = true;
     _settings = s;
     store.setSettings(s);
     // A changed override takes effect on the next layout pass.
@@ -684,6 +790,7 @@ class LauncherController extends ChangeNotifier {
       case AppSourceEvent.homePressed:
         _query = '';
         homePresses++;
+        if (_arrangePending) _place(now: true);
         notifyListeners();
         final last = _lastAttempt;
         if (last == null || _clock().difference(last) > const Duration(minutes: 15)) {

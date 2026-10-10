@@ -44,11 +44,12 @@ so you can always switch back the same way.
 
 ## The home screen
 
-![The home screen: time, date and battery on top, a grid of apps near the bottom, the search box below](images/home.png)
+![The home screen: time and date on top, a grid of apps near the bottom, the search box below](images/home.png)
 
 From top to bottom:
 
-* **The clock line**: time, date and battery. Long-press it to hide the
+* **The clock line**: time and date (battery optional in settings; off by
+  default because Android already shows it). Long-press it to hide the
   grid, for example while sharing your screen (see
   [Quick hide](#gestures)).
 * **Your wallpaper**, with empty space you can double-tap to lock the
@@ -86,15 +87,23 @@ The × in the search box, Back or Home clear the search.
 
 ## The home grid
 
-Every launch counts. The apps you launch most get a cell on the home grid,
-filled from the bottom row up, left to right, so the favourites sit right
-above the search box.
+Every launch counts. The home grid is arranged by launches: the app you
+launch most sits in the bottom right corner, the next one to its left, and
+so on along the bottom row, then the row above. The favourites sit right
+above the search box, under your thumb.
 
-**An app that has a cell keeps it.** Icons never shuffle around as counts
-change; your thumb learns where things are. A cell only frees up when you
-uninstall or hide the app, choose **Remove from home**, or make the grid
-smaller than the app's cell. The next most-launched app without a cell
-then takes it.
+As counts change, icons move to their new place, but never while you look
+at the home screen: the grid is arranged when you leave it (by opening an
+app, for example) or press Home. **Remove from home** keeps an app off the
+grid; **Add to home** brings it back, and an app you never launched then
+stays after the others.
+
+**Arrange by launches** under **Home grid** in settings is on by default.
+Turn it off and an app that has a cell keeps it: icons never shuffle
+around, the grid fills from the bottom row up, left to right, and a cell
+only frees up when you uninstall or hide the app, choose **Remove from
+home**, or make the grid smaller than the app's cell. The next
+most-launched app without a cell then takes it.
 
 The grid sizes itself from the screen: one column per 80 dp and one row
 per 96 dp, fewer with bigger labels. Set the rows and columns yourself under
@@ -185,8 +194,8 @@ The sliders button next to the search box opens settings:
 * **Sync**, see [Sync between phones](#sync-between-phones).
 * **Wallpaper**: pick a picture for the home screen, the lock screen or
   both. The home screen shows Android's wallpaper through it.
-* **Home grid**: columns and rows (Auto, or a number), and whether to show
-  the clock line.
+* **Home grid**: columns and rows (Auto, or a number), whether to show the
+  clock line, and whether to show the battery on it (off by default).
 * **Search**: open the keyboard on Home, and icons in the search results.
 * **Gestures**: the accessibility service, double-tap to lock, what each
   swipe does, and your own recorded gestures.
@@ -231,6 +240,10 @@ when they last synced.
   another.
 * Launch counts add up across phones. The stats screen shows the total and
   how many launches were on this phone.
+* Arranged by launches (the default), every phone ranks the apps by the
+  launches of all phones together, so the grids match. An app this phone
+  does not have keeps its place as a ghost (see below). The rest of this
+  list is for **Arrange by launches** turned off.
 * The first time a phone meets your other phones, it takes over the grid of
   the phone with the most launches (if that is another phone). Its own apps
   that are not in that grid get the free cells, most-launched first.

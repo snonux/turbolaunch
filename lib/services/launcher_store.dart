@@ -13,11 +13,13 @@ class LauncherSettings {
   const LauncherSettings({
     this.gridRows = 0,
     this.gridCols = 0,
+    this.autoArrange = true,
     this.labelScale = 1.0,
     this.resultScale = 1.0,
     this.clockScale = 1.0,
     this.keyboardOnHome = false,
     this.showClock = true,
+    this.showBattery = false,
     this.iconsInResults = true,
     this.doubleTapLock = true,
     this.gestures = Gestures.defaults,
@@ -27,6 +29,10 @@ class LauncherSettings {
   final int gridRows;
   final int gridCols;
 
+  /// Arrange the home grid by launches, most-launched bottom right; off keeps
+  /// placed icons where they are.
+  final bool autoArrange;
+
   /// Font size factors on top of the system font size, 0.8 to 1.6.
   final double labelScale;
   final double resultScale;
@@ -35,6 +41,9 @@ class LauncherSettings {
   /// Open the keyboard on every Home press instead of on a tap in the search box.
   final bool keyboardOnHome;
   final bool showClock;
+
+  /// Battery percent on the clock line. Off by default; Android already shows it.
+  final bool showBattery;
   final bool iconsInResults;
 
   /// Double-tap on empty home space locks the phone (needs the accessibility service).
@@ -53,22 +62,26 @@ class LauncherSettings {
   LauncherSettings copyWith({
     int? gridRows,
     int? gridCols,
+    bool? autoArrange,
     double? labelScale,
     double? resultScale,
     double? clockScale,
     bool? keyboardOnHome,
     bool? showClock,
+    bool? showBattery,
     bool? iconsInResults,
     bool? doubleTapLock,
     Map<String, String>? gestures,
   }) => LauncherSettings(
     gridRows: gridRows ?? this.gridRows,
     gridCols: gridCols ?? this.gridCols,
+    autoArrange: autoArrange ?? this.autoArrange,
     labelScale: labelScale ?? this.labelScale,
     resultScale: resultScale ?? this.resultScale,
     clockScale: clockScale ?? this.clockScale,
     keyboardOnHome: keyboardOnHome ?? this.keyboardOnHome,
     showClock: showClock ?? this.showClock,
+    showBattery: showBattery ?? this.showBattery,
     iconsInResults: iconsInResults ?? this.iconsInResults,
     doubleTapLock: doubleTapLock ?? this.doubleTapLock,
     gestures: gestures ?? this.gestures,
@@ -77,11 +90,13 @@ class LauncherSettings {
   Map<String, Object> toJson() => {
     'gridRows': gridRows,
     'gridCols': gridCols,
+    'autoArrange': autoArrange,
     'labelScale': labelScale,
     'resultScale': resultScale,
     'clockScale': clockScale,
     'keyboardOnHome': keyboardOnHome,
     'showClock': showClock,
+    'showBattery': showBattery,
     'iconsInResults': iconsInResults,
     'doubleTapLock': doubleTapLock,
     'gestures': gestures,
@@ -93,11 +108,13 @@ class LauncherSettings {
     return LauncherSettings(
       gridRows: size(j['gridRows']),
       gridCols: size(j['gridCols']),
+      autoArrange: j['autoArrange'] as bool? ?? true,
       labelScale: scale(j['labelScale']),
       resultScale: scale(j['resultScale']),
       clockScale: scale(j['clockScale']),
       keyboardOnHome: j['keyboardOnHome'] as bool? ?? false,
       showClock: j['showClock'] as bool? ?? true,
+      showBattery: j['showBattery'] as bool? ?? false,
       iconsInResults: j['iconsInResults'] as bool? ?? true,
       doubleTapLock: j['doubleTapLock'] as bool? ?? true,
       gestures: _gestures(j),

@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _focus = FocusNode();
   final _scroll = ScrollController();
   int _seenHomePresses = 0;
+  late final AppLifecycleListener _lifecycle;
 
   LauncherController get _c => widget.controller;
   bool get _searching => _focus.hasFocus || _c.query.isNotEmpty;
@@ -38,11 +39,16 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _c.addListener(_onController);
     _focus.addListener(() => setState(() {}));
+    // The grid is arranged by launches only while nobody looks at it.
+    bool front(AppLifecycleState? s) => s == AppLifecycleState.resumed || s == AppLifecycleState.inactive;
+    _c.setInFront(front(WidgetsBinding.instance.lifecycleState));
+    _lifecycle = AppLifecycleListener(onStateChange: (s) => _c.setInFront(front(s)));
   }
 
   @override
   void dispose() {
     _c.removeListener(_onController);
+    _lifecycle.dispose();
     _search.dispose();
     _focus.dispose();
     _scroll.dispose();
@@ -356,7 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// Time, date and battery. Long-press toggles quick hide.
+/// Time, date and optional battery. Long-press toggles quick hide.
 class _ClockLine extends StatefulWidget {
   const _ClockLine({required this.controller, required this.onLongPress});
 
@@ -371,28 +377,42 @@ class _ClockLineState extends State<_ClockLine> {
   Timer? _timer;
   DateTime _now = DateTime.now();
   int _battery = -1;
+  var _wantBattery = false;
+  var _tickGen = 0;
 
   @override
   void initState() {
     super.initState();
+    _wantBattery = widget.controller.settings.showBattery;
+    widget.controller.addListener(_onController);
     _tick();
     _timer = Timer.periodic(const Duration(seconds: 20), (_) => _tick());
   }
 
   @override
   void dispose() {
+    widget.controller.removeListener(_onController);
     _timer?.cancel();
     super.dispose();
   }
 
+  void _onController() {
+    final want = widget.controller.settings.showBattery;
+    if (want == _wantBattery) return;
+    _wantBattery = want;
+    unawaited(_tick());
+  }
+
   Future<void> _tick() async {
-    final battery = await widget.controller.source.battery();
-    if (mounted) {
-      setState(() {
-        _now = DateTime.now();
-        _battery = battery;
-      });
-    }
+    final gen = ++_tickGen;
+    final showBattery = widget.controller.settings.showBattery;
+    final battery = showBattery ? await widget.controller.source.battery() : -1;
+    if (!mounted || gen != _tickGen) return;
+    setState(() {
+      _now = DateTime.now();
+      _battery = battery;
+      _wantBattery = showBattery;
+    });
   }
 
   static const _days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -401,28 +421,34 @@ class _ClockLineState extends State<_ClockLine> {
   @override
   Widget build(BuildContext context) {
     final scale = widget.controller.settings.clockScale;
+    final showBattery = widget.controller.settings.showBattery;
     String two(int n) => n.toString().padLeft(2, '0');
     final date = '${_days[_now.weekday - 1]} ${_now.day} ${_months[_now.month - 1]}';
     const shadow = [Shadow(blurRadius: 4, color: Colors.black54)];
-    return GestureDetector(
-      key: const Key('clock-line'),
-      behavior: HitTestBehavior.opaque,
-      onLongPress: widget.onLongPress,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
-        child: DefaultTextStyle.merge(
-          style: const TextStyle(color: Colors.white, shadows: shadow),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text('${two(_now.hour)}:${two(_now.minute)}', style: TextStyle(fontSize: 32 * scale)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(date, style: TextStyle(fontSize: 16 * scale)),
-              ),
-              if (_battery >= 0) Text('$_battery%', style: TextStyle(fontSize: 16 * scale)),
-            ],
+    // Identifier is the Android resource-id tool/e2e_android.sh finds it by.
+    return Semantics(
+      identifier: 'clock-line',
+      container: true,
+      child: GestureDetector(
+        key: const Key('clock-line'),
+        behavior: HitTestBehavior.opaque,
+        onLongPress: widget.onLongPress,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+          child: DefaultTextStyle.merge(
+            style: const TextStyle(color: Colors.white, shadows: shadow),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text('${two(_now.hour)}:${two(_now.minute)}', style: TextStyle(fontSize: 32 * scale)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(date, style: TextStyle(fontSize: 16 * scale)),
+                ),
+                if (showBattery && _battery >= 0) Text('$_battery%', style: TextStyle(fontSize: 16 * scale)),
+              ],
+            ),
           ),
         ),
       ),

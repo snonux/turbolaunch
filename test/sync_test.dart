@@ -76,9 +76,9 @@ class Phone {
     DateTime Function()? clock,
   }) async {
     // Each instance keeps its own cache, so phones do not see each other's prefs.
-    SharedPreferences.setMockInitialValues({});
+    // Counts from before launch days, which the controller takes as made today.
+    SharedPreferences.setMockInitialValues({'launchCounts': jsonEncode(counts)});
     final store = LauncherStore(await SharedPreferences.getInstance());
-    await store.setCounts(counts);
     await store.setSlots(slots);
     await store.setSyncConfig(config);
     await store.setSettings(const LauncherSettings().copyWith(autoArrange: autoArrange));

@@ -13,6 +13,8 @@
 #   B disables Clock: its cell shows a ghost of Clock (tapping it only says
 #     so), also after a cold start onto the home screen, and Clock comes back
 #     to that cell when it is enabled again.
+#   B counts launches of the last 7 days, A of 30: after both sync, A's Sync
+#     screen and stats warn about it.
 #
 # Needs S3_TEST_ACCESS_KEY_ID and S3_TEST_SECRET_KEY (it skips without them;
 # tool/garage_test.sh starts a Garage and prints them),
@@ -291,6 +293,29 @@ if [ "$(centre Clock)" = "$clock_a" ] && ! grep -q "on your other phones" "$out/
 else
   fail "B: Clock back in its cell (now at $(centre Clock))"
 fi
+
+# B counts launches of 7 days, A of the default 30: A warns about it.
+on $b
+tap_on "TurboLaunch settings" && sleep 3
+scroll_to 'Count launches of' down || true
+tap_on "Count launches of" && sleep 2
+tap_on "The last 7 days" && sleep 2
+dump; shot window_7_days
+expect_ui "B: launch window set to 7 days" 'The last 7 days, for the grid'
+adb shell input keyevent KEYCODE_BACK; sleep 2
+tap_on "TurboLaunch settings" && sleep 3
+tap_on "On, 1 other phones" && sleep 2
+sync_now 'Synced with 1 other phone'
+home
+on $a
+tap_on "TurboLaunch settings" && sleep 3
+tap_on "On, 1 other phones" && sleep 2
+sync_now 'Synced with 1 other phone'
+scroll_to 'phone-b counts the last 7 days' down || true
+shot window_warning
+expect_ui "A: Sync warns that phone-b counts the last 7 days" 'phone-b counts the last 7 days'
+home
+stats 'phone-b counts the last 7 days'
 
 # Both phones stop syncing before the files go, so nothing writes them again.
 for phone in $a $b; do

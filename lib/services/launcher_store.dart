@@ -6,6 +6,7 @@ import 'app_pairs.dart';
 import 'app_source.dart';
 import 'gestures.dart';
 import 'home_grid.dart';
+import 'launch_log.dart';
 import 'sync.dart';
 
 /// User settings, all with defaults that work without any setup.
@@ -23,6 +24,7 @@ class LauncherSettings {
     this.iconsInResults = true,
     this.doubleTapLock = true,
     this.gestures = Gestures.defaults,
+    this.launchWindowDays = kDefaultLaunchWindowDays,
   });
 
   /// 0 means automatic, from the screen size.
@@ -53,6 +55,10 @@ class LauncherSettings {
   /// encoded [GestureAction]. A gesture that is not here does nothing.
   final Map<String, String> gestures;
 
+  /// Only launches of this many days, up to today, count for the grid,
+  /// search and stats; older ones are purged. 0 counts every launch.
+  final int launchWindowDays;
+
   GestureAction gestureAction(String code) =>
       gestures[code] == null ? GestureAction.none : GestureAction.decode(gestures[code]!);
 
@@ -72,6 +78,7 @@ class LauncherSettings {
     bool? iconsInResults,
     bool? doubleTapLock,
     Map<String, String>? gestures,
+    int? launchWindowDays,
   }) => LauncherSettings(
     gridRows: gridRows ?? this.gridRows,
     gridCols: gridCols ?? this.gridCols,
@@ -85,6 +92,7 @@ class LauncherSettings {
     iconsInResults: iconsInResults ?? this.iconsInResults,
     doubleTapLock: doubleTapLock ?? this.doubleTapLock,
     gestures: gestures ?? this.gestures,
+    launchWindowDays: launchWindowDays ?? this.launchWindowDays,
   );
 
   Map<String, Object> toJson() => {
@@ -100,6 +108,7 @@ class LauncherSettings {
     'iconsInResults': iconsInResults,
     'doubleTapLock': doubleTapLock,
     'gestures': gestures,
+    'launchWindowDays': launchWindowDays,
   };
 
   factory LauncherSettings.fromJson(Map<String, Object?> j) {
@@ -118,6 +127,7 @@ class LauncherSettings {
       iconsInResults: j['iconsInResults'] as bool? ?? true,
       doubleTapLock: j['doubleTapLock'] as bool? ?? true,
       gestures: _gestures(j),
+      launchWindowDays: ((j['launchWindowDays'] as num?)?.toInt() ?? kDefaultLaunchWindowDays).clamp(0, 3650),
     );
   }
 
@@ -147,7 +157,8 @@ class LauncherStore {
 
   static Future<LauncherStore> open() async => LauncherStore(await SharedPreferences.getInstance());
 
-  static const _counts = 'launchCounts';
+  static const _legacyCounts = 'launchCounts';
+  static const _launchDays = 'launchDays';
   static const _slots = 'homeSlots';
   static const _excluded = 'removedFromHome';
   static const _hidden = 'hiddenApps';
@@ -179,12 +190,21 @@ class LauncherStore {
     }
   }
 
-  Map<String, int> get counts => {
-    for (final e in _json(_counts).entries)
+  /// Launches per app and day (see [LaunchDays]); null before the first
+  /// version that kept days, whose counts are in [legacyCounts].
+  LaunchDays? get launchDays => _prefs.containsKey(_launchDays) ? parseLaunchDays(_json(_launchDays)) ?? {} : null;
+
+  /// Saves [v] and drops the counts from before days were kept.
+  Future<void> setLaunchDays(LaunchDays v) async {
+    await _prefs.setString(_launchDays, jsonEncode(v));
+    if (_prefs.containsKey(_legacyCounts)) await _prefs.remove(_legacyCounts);
+  }
+
+  /// Launch counts without days, from versions before the launch window.
+  Map<String, int> get legacyCounts => {
+    for (final e in _json(_legacyCounts).entries)
       if (e.value is num) e.key: (e.value as num).toInt(),
   };
-
-  Future<void> setCounts(Map<String, int> v) => _prefs.setString(_counts, jsonEncode(v));
 
   Map<Cell, String> get slots => {
     for (final e in _json(_slots).entries)

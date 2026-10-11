@@ -39,6 +39,7 @@ rejects 25+).
 | --- | --- |
 | `lib/main.dart` | Starts the app with the Android app source |
 | `lib/services/app_source.dart` | `AppEntry`, the `AppSource` interface, its Android and fake implementations |
+| `lib/services/launch_log.dart` | Launches per app and day, the rolling launch window and its purge |
 | `lib/services/launcher_controller.dart` | App list and pairs, search results, launch counts, stats, the grid, settings, export and import, Home presses, sync runs |
 | `lib/services/app_pairs.dart` | `AppPair`: a saved pair is an app of its own, keyed `pair:<first>\|<second>` |
 | `lib/services/settings_backup.dart` | The export file format (adapted from Quicklog's), validated before anything is written |
@@ -52,6 +53,14 @@ rejects 25+).
 | `packages/launcher_platform/` | Kotlin plugin: LauncherApps, icons and their disk cache, launching, package, profile and Home events, file dialogs, the accessibility service |
 
 ### Home grid rules
+
+Only launches within the launch window count, for the grid, search and
+stats (Paul, 2026-10-11): `launchWindowDays`, 30 by default, 0 for all
+time. Launches are stored per app and UTC day (`launchDays`, `{key: {day:
+n}}`), the day being the launch's timestamp rounded down; older days are
+purged whenever the counts are read. Counts from before the window
+(`launchCounts`) are migrated as launches of the day of the update, so they
+age out instead of vanishing.
 
 By default (`autoArrange`, Paul, 2026-10-10) the grid is arranged by
 launches (`arrangeHome`): the most-launched app bottom right, then
@@ -166,6 +175,11 @@ is random, made on first use and never exported.
   serial, plus `#work` for another profile; pairs map both halves.
 * Cells in the file count rows from the bottom.
 * Counts are summed (`totals`); `counts` stays this phone's own.
+* Each file carries the phone's `days` and `windowDays` beside `counts`
+  (its windowed counts, all that older versions read). A phone counts the
+  others' `days` over its own window, and a file without `days` (an older
+  version) by its `counts`. Phones with another window, or without one, are
+  listed in a warning on the Sync screen, the window setting and stats.
 * Arranged by launches (the default), every phone ranks by the summed
   counts, so the grids match without taking anything over; an app missing
   here keeps its ranked cell as a ghost. The rest of this list applies with

@@ -10,6 +10,7 @@ import 'app_source.dart';
 import 'bench.dart';
 import 'fuzzy.dart';
 import 'home_grid.dart';
+import 'launch_log.dart';
 import 'launcher_store.dart';
 import 's3_config.dart';
 import 's3_object_client.dart';
@@ -72,7 +73,6 @@ class LauncherController extends ChangeNotifier {
       _setInstalled(snapshot);
       _loaded = true;
     }
-    _counts = store.counts;
     _slots = store.slots;
     _excluded = store.excluded;
     _hidden = store.hidden;
@@ -80,7 +80,16 @@ class LauncherController extends ChangeNotifier {
     _quickHide = store.quickHide;
     _sync = store.syncConfig;
     _remote = store.remote;
-    _remoteCounts = remoteCounts(_remote);
+    // Counts from before launch days were kept count as made today, so they
+    // age out of the window rather than vanish at once.
+    var days = store.launchDays;
+    if (days == null) {
+      days = daysFromCounts(store.legacyCounts, launchDay(_clock()));
+      store.setLaunchDays(days);
+    }
+    _days = days;
+    _windowFrom = null;
+    _applyWindow();
     // Cells lent out before ghost icons go back to the app they were kept
     // for: the borrower is placed again, in a ghost's cell only when no
     // other cell is free.
@@ -130,7 +139,13 @@ class LauncherController extends ChangeNotifier {
   /// Labels folded for search once, not on every keystroke.
   final _folded = <String, String>{};
   String _fold(String label) => _folded.putIfAbsent(label, () => foldForSearch(label));
-  late Map<String, int> _counts;
+
+  /// This phone's launches per app and day, and per app within the window.
+  late LaunchDays _days;
+  Map<String, int> _counts = const {};
+
+  /// The first day of the launch window [_counts] were counted for.
+  String? _windowFrom;
   late Map<Cell, String> _slots;
   late Set<String> _excluded;
   late Set<String> _hidden;
@@ -140,7 +155,7 @@ class LauncherController extends ChangeNotifier {
 
   /// The other phones' files from the last sync, and their counts added up.
   late List<DeviceSync> _remote;
-  late Map<String, int> _remoteCounts;
+  Map<String, int> _remoteCounts = const {};
 
   /// Cells kept for an app this phone lacks, by its sync key.
   Map<Cell, String> _ghosts = const {};
@@ -209,11 +224,45 @@ class LauncherController extends ChangeNotifier {
   String get query => _query;
   bool get loaded => _loaded;
 
-  /// Launches on this phone.
-  Map<String, int> get counts => Map.unmodifiable(_counts);
+  /// Launches on this phone within the launch window.
+  Map<String, int> get counts {
+    _applyWindow();
+    return Map.unmodifiable(_counts);
+  }
 
-  /// Launches on this phone and, with sync, on the other phones.
-  Map<String, int> get totals => _totals ??= _sumCounts();
+  /// Launches within the launch window on this phone and, with sync, on the
+  /// other phones.
+  Map<String, int> get totals {
+    _applyWindow();
+    return _totals ??= _sumCounts();
+  }
+
+  /// Counts only the launches from the first day of the window on, for this
+  /// phone and the others, and purges this phone's older days. It runs
+  /// whenever the counts are read, so the window moves on with the date.
+  void _applyWindow({bool force = false}) {
+    final start = windowStart(_clock(), _settings.launchWindowDays);
+    if (!force && start == _windowFrom) return;
+    _windowFrom = start;
+    final kept = purgeBefore(_days, start);
+    if (!identical(kept, _days)) {
+      _days = kept;
+      store.setLaunchDays(_days);
+    }
+    _counts = windowCounts(_days, start);
+    _remoteCounts = remoteCounts(_remote, start: start);
+    _totals = null;
+  }
+
+  /// The other phones that count launches over another window than this
+  /// one, so their counts weigh differently in the sums.
+  List<DeviceSync> get windowMismatches => otherWindows(_remote, _settings.launchWindowDays);
+
+  /// The launches of phone [d] that count here, within this phone's window.
+  int launchesOn(DeviceSync d) {
+    _applyWindow();
+    return d.countsSince(_windowFrom ?? '').values.fold(0, (sum, n) => sum + n);
+  }
 
   Map<String, int> _sumCounts() {
     if (_remoteCounts.isEmpty) return _counts;
@@ -596,9 +645,13 @@ class LauncherController extends ChangeNotifier {
     }
     Bench.launchDone(watch);
     if (!ok) return false;
-    _counts[app.key] = (_counts[app.key] ?? 0) + 1;
+    _applyWindow();
+    final day = (_days[app.key] ??= {});
+    final today = launchDay(_clock());
+    day[today] = (day[today] ?? 0) + 1;
+    _counts = {..._counts, app.key: (_counts[app.key] ?? 0) + 1};
     _totals = null;
-    store.setCounts(_counts);
+    store.setLaunchDays(_days);
     _query = '';
     _place();
     notifyListeners();
@@ -797,9 +850,11 @@ class LauncherController extends ChangeNotifier {
       name: _sync.deviceName,
       updatedAt: _clock(),
       counts: {
-        for (final e in _counts.entries)
+        for (final e in counts.entries)
           if (e.value > 0) _syncKeyOf(e.key): e.value,
       },
+      days: {for (final e in _days.entries) _syncKeyOf(e.key): e.value},
+      windowDays: _settings.launchWindowDays,
       cells: {
         for (final e in _slots.entries)
           if (e.key.row < rows) flipRows(e.key, rows): _syncKeyOf(e.value),
@@ -827,8 +882,7 @@ class LauncherController extends ChangeNotifier {
     }
     remote.sort((a, b) => a.device.compareTo(b.device));
     _remote = remote;
-    _remoteCounts = remoteCounts(remote);
-    _totals = null;
+    _applyWindow(force: true);
     _lastSync = _clock();
     await store.setRemote(remote);
     await store.setLastSync(_lastSync!);
@@ -870,7 +924,7 @@ class LauncherController extends ChangeNotifier {
     final at = now ?? DateTime.now();
     return source.saveTextFile(
       suggestedSettingsFileName(at),
-      encodeSettingsBackup(LauncherBackup.fromStore(store), exportedAt: at),
+      encodeSettingsBackup(LauncherBackup.fromStore(store, now: _clock()), exportedAt: at),
     );
   }
 
@@ -879,7 +933,7 @@ class LauncherController extends ChangeNotifier {
   Future<bool> importSettings() async {
     final text = await source.openTextFile();
     if (text == null) return false;
-    await decodeSettingsBackup(text).applyTo(store);
+    await decodeSettingsBackup(text).applyTo(store, now: _clock());
     _forgetLayouts();
     reload();
     return true;
@@ -895,8 +949,12 @@ class LauncherController extends ChangeNotifier {
     // Turned on in settings, the arrangement shows on the way back home.
     if (s.autoArrange && !_settings.autoArrange) _arrangeNow = true;
     if (s.autoArrange != _settings.autoArrange) _forgetLayouts();
+    // Another window ranks the apps anew, shown on the way back home.
+    final window = s.launchWindowDays != _settings.launchWindowDays;
+    if (window && s.autoArrange) _arrangeNow = true;
     _settings = s;
     store.setSettings(s);
+    if (window) _applyWindow(force: true);
     // A changed override takes effect on the next layout pass.
     _rows = 0;
     _cols = 0;

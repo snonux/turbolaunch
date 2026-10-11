@@ -92,6 +92,12 @@ launch most sits in the bottom right corner, the next one to its left, and
 so on along the bottom row, then the row above. The favourites sit right
 above the search box, under your thumb.
 
+Only recent launches count: by default those of the last 30 days, a
+rolling window, so an app you stopped using drifts off the grid. Older
+launches are deleted. **Count launches of** under **Home grid** in settings
+sets the window, from 7 days to a year, or **All time** to count every
+launch.
+
 As counts change, icons move to their new place, but never while you look
 at the home screen: the grid is arranged when you leave it (by opening an
 app, for example) or press Home. **Remove from home** keeps an app off the
@@ -211,8 +217,8 @@ Light and dark follow the system setting.
 
 ![Launch stats: launch counts per app and the cell each app sits in](images/stats.png)
 
-How often you launched each app, most-launched first, and which home cell
-it holds. With [sync](#sync-between-phones) on, the counts are those of all
+How often you launched each app within the launch window, most-launched
+first, and which home cell it holds. With [sync](#sync-between-phones) on, the counts are those of all
 your phones, with this phone's share beside each.
 
 ## Moving to a new phone
@@ -243,6 +249,11 @@ when they last synced.
   another.
 * Launch counts add up across phones. The stats screen shows the total and
   how many launches were on this phone.
+* Each phone sends its launches by day, and every phone counts the others'
+  over its own launch window. Set the same window on all your phones: when
+  one counts another window (or runs a TurboLaunch from before the window,
+  which counts every launch), the Sync screen, the window setting and the
+  stats screen say which phone it is.
 * Arranged by launches (the default), every phone ranks the apps by the
   launches of all phones together, so the grids match. An app this phone
   does not have keeps its place as a ghost (see below). The rest of this

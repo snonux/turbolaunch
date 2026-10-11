@@ -24,7 +24,9 @@ feature with screenshots and a short recording.
 * fzf-style search: letters in order, gaps allowed, so "orgm" finds Organic
   Maps; matched letters highlighted; Enter launches the top match
 * A home grid arranged by launches: the most-launched app bottom right,
-  nearest the thumb; or, if you prefer, icons that never move once placed
+  nearest the thumb; or, if you prefer, icons that never move once placed.
+  Only the last 30 days count (you can pick another window), so the grid
+  follows what you use now
 * App shortcuts ("New note", "Navigate home") are search results too
 * Search box always on screen at the bottom; Home clears it
 * Long-press an app: remove from or add to home, hide, app info, uninstall

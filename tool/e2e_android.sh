@@ -9,7 +9,8 @@
 # notification shade, a swipe up the search (and over its results closes it, as does leaving for an app and coming back), and a gesture recorded in settings
 # quick settings, that the Screenshot tile shoots the open app, that Sync now works (against a Garage of its own,
 # started by tool/garage_test.sh when Docker runs), that settings sees
-# the accessibility service and shows the launch stats, and that a double-tap on
+# the accessibility service and shows the launch stats, that the launch window
+# can be set and the stats follow it, and that a double-tap on
 # empty home space locks the phone. Screenshots, UI dumps and the log go to
 # build/e2e-android/; at the end tool/bench_android.sh measures speed and
 # tool/shots_android.sh takes the guide's
@@ -242,8 +243,30 @@ tap_on "Launch stats" && sleep 2
 dump; shot stats
 expect_ui "stats count the launches" '5 launches on this phone'
 expect_ui "stats count Settings" 'Settings&#10;Not on home&#10;2'
+expect_ui "stats count the last 30 days" 'Counting launches of the last 30 days'
 adb shell input keyevent KEYCODE_BACK
 sleep 2; dump
+# The launch window: 30 days by default; set to 7 days the stats count those
+# (every launch here is from today), then back to 30.
+scroll_to 'Count launches of' down || true
+expect_ui "launch window 30 days by default" 'The last 30 days, for the grid'
+tap_on "Count launches of" && sleep 2
+dump; shot launch_window
+tap_on "The last 7 days" && sleep 2
+dump
+expect_ui "launch window set to 7 days" 'The last 7 days, for the grid'
+adb shell input keyevent KEYCODE_BACK; sleep 2
+tap_on "TurboLaunch settings" && sleep 3
+tap_on "Launch stats" && sleep 2
+dump; shot stats_7_days
+expect_ui "stats count the last 7 days" 'Counting launches of the last 7 days'
+expect_ui "the last 7 days hold today's launches" '5 launches on this phone'
+adb shell input keyevent KEYCODE_BACK; sleep 2
+scroll_to 'Count launches of' down || true
+tap_on "Count launches of" && sleep 2
+tap_on "The last 30 days" && sleep 2
+dump
+expect_ui "launch window back to 30 days" 'The last 30 days, for the grid'
 # Optional battery on the clock line (off by default).
 for _ in 1 2 3 4 5 6; do
   grep -q 'Battery on the clock line' "$out/ui.xml" && break

@@ -61,7 +61,9 @@ but this phone lacks keeps its ranked cell as a ghost. Apps with no
 launches put there by "Add to home" come after the ranked ones. Icons move
 only while the home screen is not in front (`setInFront`, from the app
 lifecycle) or on a Home press, never under a finger; until then a pass only
-drops apps that left the grid.
+drops apps that left the grid. The ghosts are stored (`homeGhosts`, and per
+size in `homeLayouts`), because a start after a reboot opens with the home
+screen in front and would otherwise have none until it is left.
 
 With the setting off: a placed app keeps its cell; only uninstalling it,
 hiding it, "Remove from home", or shrinking the grid below its cell frees

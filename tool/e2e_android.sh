@@ -333,6 +333,9 @@ if node_has pair-first Settings; then pass "Enter picks Settings as the top app"
 #     app's launch-adjacent start splits the screen (Android 12L and newer
 #     have no split screen accessibility action), so both tasks end up in
 #     multi-window mode.
+# pair-first can sit at the very bottom of the screen; bring pair-second up.
+scroll_to 'resource-id="pair-second"' down || true
+adb shell input swipe $((w / 2)) $((h * 3 / 5)) $((w / 2)) $((h * 2 / 5)) 300; sleep 1
 tap_on pair-second && sleep 2
 adb shell input text "clock"; sleep 2
 adb shell input keyevent KEYCODE_ENTER; sleep 2; dump

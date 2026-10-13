@@ -616,6 +616,38 @@ void main() {
     expect(find.textContaining('Home row 1, column'), findsNWidgets(2));
   });
 
+  testWidgets('stats and settings warn when another phone counts another launch window', (tester) async {
+    await start(tester, {
+      'launchCounts': '{"org.example.maps/org.example.maps.Main#0": 5}',
+      'syncRemote':
+          '[{"format": "turbolaunch-sync", "formatVersion": 1, "device": "other", "name": "Tablet", '
+          '"counts": {"org.example.maps/org.example.maps.Main": 2}, '
+          '"days": {"org.example.maps/org.example.maps.Main": {"2000-01-01": 9}}, "windowDays": 90}]',
+    });
+    await openSettings(tester);
+    await scrollTo(tester, find.byKey(const Key('launch-window')));
+    expect(find.textContaining('The last 30 days, for the grid'), findsOneWidget);
+    expect(find.textContaining('Tablet counts the last 90 days'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('launch-window')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('The last 90 days'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('The last 90 days, for the grid'), findsOneWidget);
+    expect(find.textContaining('Tablet counts'), findsNothing, reason: 'both count 90 days now');
+    await tester.tap(find.byKey(const Key('launch-window')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('The last 7 days'));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    await openSettings(tester);
+    await tester.tap(find.byKey(const Key('open-stats')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Tablet counts the last 90 days'), findsOneWidget);
+    expect(find.text('5 launches on all phones, 5 here'), findsOneWidget, reason: "the tablet's day is long past");
+    expect(find.textContaining('Counting launches of the last 7 days.'), findsOneWidget);
+  });
+
   testWidgets('settings export and import round-trip, a bad file changes nothing', (tester) async {
     await start(tester);
     await openSearch(tester);

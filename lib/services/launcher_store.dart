@@ -18,7 +18,8 @@ class LauncherSettings {
     this.resultScale = 1.0,
     this.clockScale = 1.0,
     this.keyboardOnHome = false,
-    this.showClock = true,
+    this.showTime = true,
+    this.showDate = true,
     this.showBattery = false,
     this.iconsInResults = true,
     this.doubleTapLock = true,
@@ -40,10 +41,16 @@ class LauncherSettings {
 
   /// Open the keyboard on every Home press instead of on a tap in the search box.
   final bool keyboardOnHome;
-  final bool showClock;
+
+  /// What the clock line at the top shows. With all three off there is no
+  /// line and the grid gets its space.
+  final bool showTime;
+  final bool showDate;
 
   /// Battery percent on the clock line. Off by default; Android already shows it.
   final bool showBattery;
+
+  bool get showClockLine => showTime || showDate || showBattery;
   final bool iconsInResults;
 
   /// Double-tap on empty home space locks the phone (needs the accessibility service).
@@ -67,7 +74,8 @@ class LauncherSettings {
     double? resultScale,
     double? clockScale,
     bool? keyboardOnHome,
-    bool? showClock,
+    bool? showTime,
+    bool? showDate,
     bool? showBattery,
     bool? iconsInResults,
     bool? doubleTapLock,
@@ -80,7 +88,8 @@ class LauncherSettings {
     resultScale: resultScale ?? this.resultScale,
     clockScale: clockScale ?? this.clockScale,
     keyboardOnHome: keyboardOnHome ?? this.keyboardOnHome,
-    showClock: showClock ?? this.showClock,
+    showTime: showTime ?? this.showTime,
+    showDate: showDate ?? this.showDate,
     showBattery: showBattery ?? this.showBattery,
     iconsInResults: iconsInResults ?? this.iconsInResults,
     doubleTapLock: doubleTapLock ?? this.doubleTapLock,
@@ -95,7 +104,8 @@ class LauncherSettings {
     'resultScale': resultScale,
     'clockScale': clockScale,
     'keyboardOnHome': keyboardOnHome,
-    'showClock': showClock,
+    'showTime': showTime,
+    'showDate': showDate,
     'showBattery': showBattery,
     'iconsInResults': iconsInResults,
     'doubleTapLock': doubleTapLock,
@@ -105,6 +115,8 @@ class LauncherSettings {
   factory LauncherSettings.fromJson(Map<String, Object?> j) {
     double scale(Object? v) => ((v as num?)?.toDouble() ?? 1.0).clamp(minScale, maxScale);
     int size(Object? v) => ((v as num?)?.toInt() ?? 0).clamp(0, 12);
+    // Settings from before the per-element toggles had one for the whole line.
+    final line = j['showClock'] as bool? ?? true;
     return LauncherSettings(
       gridRows: size(j['gridRows']),
       gridCols: size(j['gridCols']),
@@ -113,8 +125,9 @@ class LauncherSettings {
       resultScale: scale(j['resultScale']),
       clockScale: scale(j['clockScale']),
       keyboardOnHome: j['keyboardOnHome'] as bool? ?? false,
-      showClock: j['showClock'] as bool? ?? true,
-      showBattery: j['showBattery'] as bool? ?? false,
+      showTime: j['showTime'] as bool? ?? line,
+      showDate: j['showDate'] as bool? ?? line,
+      showBattery: line && (j['showBattery'] as bool? ?? false),
       iconsInResults: j['iconsInResults'] as bool? ?? true,
       doubleTapLock: j['doubleTapLock'] as bool? ?? true,
       gestures: _gestures(j),

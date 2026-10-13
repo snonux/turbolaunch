@@ -28,7 +28,7 @@ feature with screenshots and a short recording.
 * App shortcuts ("New note", "Navigate home") are search results too
 * Search box always on screen at the bottom; Home clears it
 * Long-press an app: remove from or add to home, hide, app info, uninstall
-* Clock and date on top (optional battery, off by default); long-press it to hide the grid (quick hide)
+* Time, date and battery on top, each optional (battery off by default); long-press it to hide the grid (quick hide)
 * Double-tap empty home space to lock; swipe up to search, down for
   notifications; set any swipe, or a gesture you draw, to open an app, the
   flashlight, quick settings and more

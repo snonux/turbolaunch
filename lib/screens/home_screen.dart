@@ -280,7 +280,7 @@ class _HomeScreenState extends State<HomeScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              if (_c.settings.showClock && !_searching) _ClockLine(controller: _c, onLongPress: _c.toggleQuickHide),
+              if (_c.settings.showClockLine && !_searching) _ClockLine(controller: _c, onLongPress: _c.toggleQuickHide),
               if (_c.syncOverdue && !_searching) _syncWarning(scheme),
               Expanded(
                 child: !_c.loaded
@@ -512,8 +512,9 @@ class _ClockLineState extends State<_ClockLine> {
 
   @override
   Widget build(BuildContext context) {
-    final scale = widget.controller.settings.clockScale;
-    final showBattery = widget.controller.settings.showBattery;
+    final settings = widget.controller.settings;
+    final scale = settings.clockScale;
+    final showBattery = settings.showBattery;
     String two(int n) => n.toString().padLeft(2, '0');
     final date = '${_days[_now.weekday - 1]} ${_now.day} ${_months[_now.month - 1]}';
     const shadow = [Shadow(blurRadius: 4, color: Colors.black54)];
@@ -533,10 +534,13 @@ class _ClockLineState extends State<_ClockLine> {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text('${two(_now.hour)}:${two(_now.minute)}', style: TextStyle(fontSize: 32 * scale)),
-                const SizedBox(width: 12),
+                if (settings.showTime)
+                  Text('${two(_now.hour)}:${two(_now.minute)}', style: TextStyle(fontSize: 32 * scale)),
+                if (settings.showTime && settings.showDate) const SizedBox(width: 12),
                 Expanded(
-                  child: Text(date, style: TextStyle(fontSize: 16 * scale)),
+                  child: settings.showDate
+                      ? Text(date, style: TextStyle(fontSize: 16 * scale))
+                      : const SizedBox.shrink(),
                 ),
                 if (showBattery && _battery >= 0) Text('$_battery%', style: TextStyle(fontSize: 16 * scale)),
               ],

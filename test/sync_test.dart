@@ -161,6 +161,24 @@ void main() {
     expect(b.c.ghosts, isEmpty);
   });
 
+  test('arranged by launches, a restart with the home in front still shows the ghosts', () async {
+    final mail = app('mail'), maps = app('maps'), chat = app('chat');
+    await phone([mail, maps, chat], counts: {mail.key: 5, maps.key: 3}, autoArrange: true);
+    final b = await phone([mail, chat], counts: {chat.key: 4}, autoArrange: true);
+    await syncAll();
+    expect(b.c.ghosts, {const Cell(2, 0): 'maps'});
+    // After a reboot the launcher starts with the home screen in front, so
+    // the grid is not arranged again until it is left.
+    final restarted = LauncherController(FakeAppSource([mail, chat]), b.store, s3Client: (_) => bucket);
+    addTearDown(restarted.dispose);
+    restarted.setInFront(true);
+    expect(restarted.ghosts, {const Cell(2, 0): 'maps'});
+    await restarted.refresh();
+    restarted.setAutoGridSize(3, 3);
+    expect(restarted.grid.map((cell, a) => MapEntry(cell, a.label)), b.grid);
+    expect(restarted.ghosts, {const Cell(2, 0): 'maps'});
+  });
+
   test('arranged by launches, a sync with the home in front waits for it to be left', () async {
     final mail = app('mail'), chat = app('chat');
     final a = await phone([mail, chat], counts: {mail.key: 2}, autoArrange: true);

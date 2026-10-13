@@ -11,7 +11,8 @@
 #   Both stats screens show 6 launches on all phones.
 #   A launch and Home within the hour after that do not sync again.
 #   B disables Clock: its cell shows a ghost of Clock (tapping it only says
-#     so), and Clock comes back to that cell when it is enabled again.
+#     so), also after a cold start onto the home screen, and Clock comes back
+#     to that cell when it is enabled again.
 #
 # Needs S3_TEST_ACCESS_KEY_ID and S3_TEST_SECRET_KEY (it skips without them;
 # tool/garage_test.sh starts a Garage and prints them),
@@ -272,6 +273,16 @@ fi
 [ -n "$ghost" ] && adb shell input tap $ghost && sleep 1
 dump; shot ghost_tapped
 expect_ui "B: tapping the ghost says Clock is not here" "on your other phones"
+# A cold start straight onto the home screen (as after a reboot) still
+# shows the ghost: the grid is not arranged again while home is in front.
+adb shell am force-stop "$app"
+adb shell input keyevent KEYCODE_HOME; sleep 8
+dump; shot ghost_restart
+if [ "$(centre Clock)" = "$clock_a" ]; then
+  pass "B: ghost of Clock in its cell after a restart"
+else
+  fail "B: ghost of Clock in its cell after a restart (now at $(centre Clock))"
+fi
 adb shell pm enable "$clock_pkg" >/dev/null
 adb shell input keyevent KEYCODE_HOME; sleep 5
 dump; shot clock_back

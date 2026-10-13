@@ -91,9 +91,10 @@ class LauncherController extends ChangeNotifier {
       store.clearLegacyLent();
     }
     _lent = store.lent;
+    _ghosts = store.ghosts;
     _layoutSize = store.layoutSize;
     _layouts = {
-      for (final e in store.layouts.entries) e.key: (slots: e.value.slots, lent: e.value.lent, ghosts: const {}),
+      for (final e in store.layouts.entries) e.key: (slots: e.value.slots, lent: e.value.lent, ghosts: e.value.ghosts),
     };
     _lastSync = store.lastSync;
     _lastAttempt = store.lastSyncAttempt;
@@ -445,11 +446,13 @@ class LauncherController extends ChangeNotifier {
       _ghosts = const {};
       if (_settings.autoArrange) _arrangeNow = true;
     }
+    store.setGhosts(_ghosts);
     _saveLayouts();
   }
 
-  void _saveLayouts() =>
-      store.setLayouts({for (final e in _layouts.entries) e.key: (slots: e.value.slots, lent: e.value.lent)});
+  void _saveLayouts() => store.setLayouts({
+    for (final e in _layouts.entries) e.key: (slots: e.value.slots, lent: e.value.lent, ghosts: e.value.ghosts),
+  });
 
   /// After the user changes the grid by hand, the other sizes are arranged
   /// afresh rather than brought back without the change.
@@ -483,10 +486,19 @@ class LauncherController extends ChangeNotifier {
     final shared = _remote.isEmpty
         ? const <Cell, String>{}
         : {for (final e in sharedCells(_remote, _rows).entries) e.key: local(e.value)};
+    final ghostsBefore = _ghosts;
     if (_settings.autoArrange) {
       _arrange(shared, now: now || _arrangeNow);
-      return;
+    } else {
+      _placeKept(shared, local);
     }
+    // Kept, so the first frame after a restart has them: with the home
+    // screen in front the grid is not arranged again until it is left.
+    if (!mapEquals(_ghosts, ghostsBefore)) store.setGhosts(_ghosts);
+  }
+
+  /// Places the apps by [placeHome], keeping placed icons in their cells.
+  void _placeKept(Map<Cell, String> shared, String Function(String) local) {
     final next = placeHome(
       slots: _slots,
       rows: _rows,

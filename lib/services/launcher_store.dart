@@ -179,6 +179,7 @@ class LauncherStore {
   static const _met = 'syncMetOthers';
   static const _layoutSize = 'homeSlotsSize';
   static const _layouts = 'homeLayouts';
+  static const _ghosts = 'homeGhosts';
 
   Map<String, Object?> _json(String key) {
     final raw = _prefs.getString(key);
@@ -206,13 +207,21 @@ class LauncherStore {
   Future<void> setSlots(Map<Cell, String> v) =>
       _prefs.setString(_slots, jsonEncode({for (final e in v.entries) e.key.toString(): e.value}));
 
+  /// The ghost cells the home grid showed, by sync key, so a cold start
+  /// (after a reboot, say) draws them before the grid is arranged again.
+  Map<Cell, String> get ghosts => _cells(_ghosts);
+
+  Future<void> setGhosts(Map<Cell, String> v) =>
+      _prefs.setString(_ghosts, jsonEncode({for (final e in v.entries) e.key.toString(): e.value}));
+
   /// The grid size the home cells are for, `rowsxcols`.
   String? get layoutSize => _prefs.getString(_layoutSize);
   Future<void> setLayoutSize(String v) => _prefs.setString(_layoutSize, v);
 
   /// The home cells of the other grid sizes this phone had (a rotated
-  /// screen has another size), by size, with the cells lent at that size.
-  Map<String, ({Map<Cell, String> slots, Map<Cell, String> lent})> get layouts {
+  /// screen has another size), by size, with the cells lent and the ghosts
+  /// at that size.
+  Map<String, ({Map<Cell, String> slots, Map<Cell, String> lent, Map<Cell, String> ghosts})> get layouts {
     Map<Cell, String> cells(Object? m) => {
       if (m is Map)
         for (final e in m.entries)
@@ -221,16 +230,24 @@ class LauncherStore {
     };
     return {
       for (final e in _json(_layouts).entries)
-        if (e.value is Map) e.key: (slots: cells((e.value as Map)['slots']), lent: cells((e.value as Map)['lent'])),
+        if (e.value is Map)
+          e.key: (
+            slots: cells((e.value as Map)['slots']),
+            lent: cells((e.value as Map)['lent']),
+            ghosts: cells((e.value as Map)['ghosts']),
+          ),
     };
   }
 
-  Future<void> setLayouts(Map<String, ({Map<Cell, String> slots, Map<Cell, String> lent})> v) {
+  Future<void> setLayouts(
+    Map<String, ({Map<Cell, String> slots, Map<Cell, String> lent, Map<Cell, String> ghosts})> v,
+  ) {
     Map<String, String> cells(Map<Cell, String> m) => {for (final e in m.entries) e.key.toString(): e.value};
     return _prefs.setString(
       _layouts,
       jsonEncode({
-        for (final e in v.entries) e.key: {'slots': cells(e.value.slots), 'lent': cells(e.value.lent)},
+        for (final e in v.entries)
+          e.key: {'slots': cells(e.value.slots), 'lent': cells(e.value.lent), 'ghosts': cells(e.value.ghosts)},
       }),
     );
   }

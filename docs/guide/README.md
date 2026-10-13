@@ -172,8 +172,10 @@ A saved pair is an app of its own: it shows up in search, counts its
 launches and earns a home cell like any app. If you uninstall one of its
 two apps, the pair disappears until it is back.
 
-Opening a pair needs the accessibility service, which switches into split
-screen. Without it only the top app opens.
+On Android 12L and newer a pair needs nothing else. On older versions it
+needs the accessibility service, which switches into split screen; without
+it only the top app opens. An app that does not support split screen opens
+full screen.
 
 ## Work profile apps
 
@@ -292,7 +294,8 @@ It asks for:
 until you turn it on** under *Settings, Accessibility* (the **Accessibility
 service** line in TurboLaunch's settings takes you there). It only performs
 system actions: lock the screen on a double-tap, pull down the
-notifications or quick settings, switch into split screen for an app pair,
+notifications or quick settings, switch into split screen for an app pair
+(Android 12 and older),
 and open recent apps, the power menu or take a screenshot when a gesture you
 set up or the Screenshot tile asks for it. It reads no
 screen content and sees nothing you type.

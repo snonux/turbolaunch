@@ -23,6 +23,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'home_grid.dart';
+import 'launch_log.dart';
 import 's3_config.dart';
 
 const String kSyncFormat = 'turbolaunch-sync';
@@ -125,6 +126,8 @@ class DeviceSync {
     this.name = '',
     this.updatedAt,
     this.counts = const {},
+    this.days,
+    this.windowDays,
     this.cells = const {},
     this.labels = const {},
   });
@@ -132,7 +135,23 @@ class DeviceSync {
   final String device;
   final String name;
   final DateTime? updatedAt;
+
+  /// The phone's launches within its own window, as it counted them when it
+  /// wrote the file. Files from before the window count every launch.
   final Map<String, int> counts;
+
+  /// The phone's launches per app and day, so each phone counts them over
+  /// its own window, also when the file is old. Null in files from before
+  /// the window, which only have [counts].
+  final LaunchDays? days;
+
+  /// The phone's launch window in days (0 for every launch); null in files
+  /// from before the window, which counted every launch.
+  final int? windowDays;
+
+  /// The launches from [start] on (see [windowStart]), from [days] when the
+  /// file has them, else the file's [counts].
+  Map<String, int> countsSince(String start) => days == null ? counts : windowCounts(days!, start);
 
   /// Home cells with rows counted from the bottom (0 is the bottom row).
   final Map<Cell, String> cells;
@@ -150,6 +169,8 @@ class DeviceSync {
     'name': name,
     'updatedAt': ?updatedAt?.toUtc().toIso8601String(),
     'counts': counts,
+    'days': ?days,
+    'windowDays': ?windowDays,
     'cells': {for (final e in cells.entries) e.key.toString(): e.value},
     'labels': labels,
   };
@@ -164,7 +185,7 @@ class DeviceSync {
     final device = j['device'];
     if (device is! String || device.isEmpty) return null;
     final counts = j['counts'], cells = j['cells'], labels = j['labels'];
-    final updatedAt = j['updatedAt'];
+    final updatedAt = j['updatedAt'], windowDays = j['windowDays'];
     return DeviceSync(
       device: device,
       name: j['name'] is String ? j['name'] as String : '',
@@ -174,6 +195,8 @@ class DeviceSync {
           for (final e in counts.entries)
             if (e.key is String && e.value is int && (e.value as int) > 0) e.key as String: e.value as int,
       },
+      days: parseLaunchDays(j['days']),
+      windowDays: windowDays is int && windowDays >= 0 ? windowDays : null,
       cells: {
         if (cells is Map)
           for (final e in cells.entries)
@@ -201,15 +224,34 @@ class DeviceSync {
 /// A cell counted from the top of a [rows]-row grid, counted from the bottom, and back.
 Cell flipRows(Cell c, int rows) => Cell(rows - 1 - c.row, c.col);
 
-/// The other phones' launch counts, added up per sync key.
-Map<String, int> remoteCounts(Iterable<DeviceSync> remote) {
+/// The other phones' launch counts from [start] on, added up per sync key.
+Map<String, int> remoteCounts(Iterable<DeviceSync> remote, {String start = ''}) {
   final sum = <String, int>{};
   for (final d in remote) {
-    for (final e in d.counts.entries) {
+    for (final e in d.countsSince(start).entries) {
       sum[e.key] = (sum[e.key] ?? 0) + e.value;
     }
   }
   return sum;
+}
+
+/// The other phones whose launch window is not [windowDays]: files from
+/// before the window count every launch.
+List<DeviceSync> otherWindows(Iterable<DeviceSync> remote, int windowDays) => [
+  for (final d in remote)
+    if ((d.windowDays ?? 0) != windowDays) d,
+];
+
+/// The warning for [others], the phones from [otherWindows]; null when
+/// every phone counts the same window.
+String? windowWarning(List<DeviceSync> others) {
+  if (others.isEmpty) return null;
+  final which = [
+    for (final d in others)
+      '${d.label} counts ${d.windowDays == null ? 'all launches (an older TurboLaunch)' : describeWindow(d.windowDays!)}',
+  ].join(', ');
+  return 'Your phones count launches over different windows: $which. '
+      'Set the same window on every phone, or the summed counts mix them.';
 }
 
 /// How many launches [d] has made, which decides whose grid wins.

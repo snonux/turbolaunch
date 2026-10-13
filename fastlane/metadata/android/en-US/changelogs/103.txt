@@ -1,0 +1,1 @@
+Only launches of the last 30 days count for the home grid, search and stats; older ones are deleted. Pick another window, or All time, under Settings, Home grid, Count launches of. Synced phones that count another window are named on the Sync, settings and stats screens.

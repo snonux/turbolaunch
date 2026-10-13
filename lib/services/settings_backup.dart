@@ -2,13 +2,15 @@ import 'dart:convert';
 
 import 'app_pairs.dart';
 import 'home_grid.dart';
+import 'launch_log.dart';
 import 'launcher_store.dart';
 import 'sync.dart';
 
 /// Settings export and import, adapted from Quicklog's settings_backup.dart:
 /// one versioned, readable JSON file the user saves and opens through the
 /// system file dialogs. It carries the settings, hidden apps, apps removed
-/// from home, app pairs, launch counts, home cells and the sync settings
+/// from home, app pairs, launch counts (per day, and summed over the launch
+/// window for older versions), home cells and the sync settings
 /// (with the S3 keys, in plain text like Quicklog's), so a new phone starts
 /// with the same grid. The phone's sync id is never in it.
 
@@ -40,6 +42,7 @@ class LauncherBackup {
     this.removedFromHome,
     this.pairs,
     this.launchCounts,
+    this.launchDays,
     this.homeSlots,
     this.sync,
     this.exportedAt,
@@ -49,7 +52,12 @@ class LauncherBackup {
   final Set<String>? hidden;
   final Set<String>? removedFromHome;
   final List<AppPair>? pairs;
+
+  /// Launches within the window; all an export from before the window has.
   final Map<String, int>? launchCounts;
+
+  /// Launches per app and day; preferred over [launchCounts] on import.
+  final LaunchDays? launchDays;
   final Map<Cell, String>? homeSlots;
   final SyncConfig? sync;
 
@@ -59,27 +67,40 @@ class LauncherBackup {
   /// When the file was written, if it says so (informational only).
   final DateTime? exportedAt;
 
-  static LauncherBackup fromStore(LauncherStore store) => LauncherBackup(
-    settings: store.settings,
-    hidden: store.hidden,
-    removedFromHome: store.excluded,
-    pairs: store.pairs,
-    launchCounts: store.counts,
-    homeSlots: store.slots,
-    sync: store.syncConfig,
-  );
+  static LauncherBackup fromStore(LauncherStore store, {DateTime? now}) {
+    final days = store.launchDays;
+    return LauncherBackup(
+      settings: store.settings,
+      hidden: store.hidden,
+      removedFromHome: store.excluded,
+      pairs: store.pairs,
+      launchCounts: days == null
+          ? store.legacyCounts
+          : windowCounts(days, windowStart(now ?? DateTime.now(), store.settings.launchWindowDays)),
+      launchDays: days,
+      homeSlots: store.slots,
+      sync: store.syncConfig,
+    );
+  }
 
   /// Writes every section present in this backup into [store]. With sync on,
   /// the launch counts stay out: the bucket already has them, under the
   /// phone that made them, and importing them too would count them twice.
-  Future<void> applyTo(LauncherStore store) async {
+  /// Counts without days are taken as made on the day of [now].
+  Future<void> applyTo(LauncherStore store, {DateTime? now}) async {
     if (sync != null) await store.setSyncConfig(sync!);
     final syncOn = (sync ?? store.syncConfig).enabled;
     if (settings != null) await store.setSettings(settings!);
     if (hidden != null) await store.setHidden(hidden!);
     if (removedFromHome != null) await store.setExcluded(removedFromHome!);
     if (pairs != null) await store.setPairs(pairs!);
-    if (launchCounts != null && !syncOn) await store.setCounts(launchCounts!);
+    if (!syncOn) {
+      if (launchDays != null) {
+        await store.setLaunchDays(launchDays!);
+      } else if (launchCounts != null) {
+        await store.setLaunchDays(daysFromCounts(launchCounts!, launchDay(now ?? DateTime.now())));
+      }
+    }
     if (homeSlots != null) {
       await store.setSlots(homeSlots!);
       await store.setGhosts(const {});
@@ -105,6 +126,7 @@ String encodeSettingsBackup(LauncherBackup b, {required DateTime exportedAt}) {
     'removedFromHome': ?(b.removedFromHome?.toList()?..sort()),
     'appPairs': ?b.pairs?.map((p) => p.toJson()).toList(),
     'launchCounts': ?b.launchCounts,
+    'launchDays': ?b.launchDays,
     'homeSlots': ?b.homeSlots?.map((c, k) => MapEntry(c.toString(), k)),
     'sync': ?b.sync?.toJson(),
   };
@@ -154,6 +176,7 @@ LauncherBackup decodeSettingsBackup(String text) {
       if (v is! Map || v.values.any((n) => n is! int || n < 0)) return null;
       return {for (final e in v.entries) e.key as String: e.value as int};
     }),
+    launchDays: _opt(doc, 'launchDays', parseLaunchDays),
     homeSlots: _opt(doc, 'homeSlots', (v) {
       if (v is! Map) return null;
       final slots = <Cell, String>{};

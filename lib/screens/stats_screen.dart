@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../services/launch_log.dart';
 import '../services/launcher_controller.dart';
 import '../widgets/app_icon.dart';
+import '../widgets/window_warning.dart';
 
 /// Launch counts per app, most-launched first, with each app's home cell, so
-/// the grid's order explains itself. With sync, counts are every phone's.
+/// the grid's order explains itself. Only the launches of the launch window
+/// count; with sync, counts are every phone's.
 class StatsScreen extends StatelessWidget {
   const StatsScreen({super.key, required this.controller, required this.icons});
 
@@ -21,22 +24,27 @@ class StatsScreen extends StatelessWidget {
         final here = stats.fold(0, (sum, s) => sum + s.here);
         final synced = controller.otherPhones.isNotEmpty;
         final rows = controller.rows;
+        final window = describeWindow(controller.settings.launchWindowDays);
         return Scaffold(
           appBar: AppBar(title: const Text('Launch stats')),
           body: stats.isEmpty
-              ? const Center(child: Text('Nothing launched yet'))
+              ? Center(
+                  child: Text(
+                    controller.settings.launchWindowDays == 0 ? 'Nothing launched yet' : 'Nothing launched in $window',
+                  ),
+                )
               : ListView(
                   key: const Key('stats-list'),
                   children: [
+                    WindowWarning(key: const Key('stats-window-warning'), controller: controller),
                     ListTile(
                       key: const Key('stats-total'),
                       title: Text(
                         synced ? '$total launches on all phones, $here here' : '$total launches on this phone',
                       ),
                       subtitle: Text(
-                        controller.settings.autoArrange
-                            ? 'The most launched app sits bottom right, the next ones to its left and above.'
-                            : 'Free home cells go to the most-launched apps; a placed app keeps its cell.',
+                        'Counting ${window == 'all launches' ? 'all launches' : 'launches of $window'}. '
+                        '${controller.settings.autoArrange ? 'The most launched app sits bottom right, the next ones to its left and above.' : 'Free home cells go to the most-launched apps; a placed app keeps its cell.'}',
                       ),
                     ),
                     for (final s in stats)

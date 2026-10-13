@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../services/launch_log.dart';
 import '../services/launcher_controller.dart';
 import '../services/s3_config.dart';
 import '../services/sync.dart';
+import '../widgets/window_warning.dart';
 
 /// S3 sync settings, "Sync now" and the other phones the last sync found.
 class SyncScreen extends StatefulWidget {
@@ -171,13 +173,15 @@ class _SyncScreenState extends State<SyncScreen> {
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
               child: Text('Other phones', style: text.titleMedium),
             ),
+            WindowWarning(key: const Key('sync-window-warning'), controller: _c),
             for (final d in _c.otherPhones)
               ListTile(
                 key: ValueKey('phone-${d.device}'),
                 leading: const Icon(Icons.smartphone),
                 title: Text(d.label),
                 subtitle: Text(
-                  '${d.counts.values.fold(0, (a, b) => a + b)} launches, '
+                  '${_c.launchesOn(d)} launches, counting '
+                  '${d.windowDays == null ? 'all launches' : describeWindow(d.windowDays!)}, '
                   '${d.cells.length} home cells, updated ${_when(d.updatedAt)}',
                 ),
               ),

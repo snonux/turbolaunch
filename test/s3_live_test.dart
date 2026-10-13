@@ -4,6 +4,7 @@
 // uses that server, S3_TEST_BUCKET and the keys in S3_TEST_ACCESS_KEY_ID and
 // S3_TEST_SECRET_KEY.
 // Each run writes under a prefix of its own and deletes it afterwards.
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
@@ -56,9 +57,9 @@ void main() {
     Map<String, int> counts,
     Map<Cell, String> slots,
   ) async {
-    SharedPreferences.setMockInitialValues({});
+    // Counts from before launch days, which the controller takes as made today.
+    SharedPreferences.setMockInitialValues({'launchCounts': jsonEncode(counts)});
     final store = LauncherStore(await SharedPreferences.getInstance());
-    await store.setCounts(counts);
     await store.setSlots(slots);
     await store.setSyncConfig(config.copyWith(deviceName: name));
     final c = LauncherController(FakeAppSource(apps), store, syncPrefix: prefix);

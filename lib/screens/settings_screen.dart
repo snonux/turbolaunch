@@ -4,12 +4,14 @@ import 'package:launcher_platform/launcher_platform.dart';
 import '../services/app_source.dart';
 import '../services/app_version.dart';
 import '../services/gestures.dart';
+import '../services/launch_log.dart';
 import '../services/launcher_controller.dart';
 import '../services/launcher_store.dart';
 import '../services/settings_backup.dart';
 import '../services/startup_timer.dart';
 import '../widgets/app_icon.dart';
 import '../widgets/matched_text.dart';
+import '../widgets/window_warning.dart';
 import 'gesture_settings.dart';
 import 'stats_screen.dart';
 import 'sync_screen.dart';
@@ -117,6 +119,26 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
       message = 'Could not read the file: $e';
     }
     if (mounted) setState(() => _dataResult = message);
+  }
+
+  static String _windowName(int days) => days == 0 ? 'All time' : 'The last $days days';
+
+  Future<void> _pickWindow() async {
+    final s = widget.controller.settings;
+    final days = await showDialog<int>(
+      context: context,
+      builder: (context) => SimpleDialog(
+        title: const Text('Count launches of'),
+        children: [
+          for (final d in kLaunchWindowChoices)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, d),
+              child: Text(d == s.launchWindowDays ? '${_windowName(d)} ✓' : _windowName(d)),
+            ),
+        ],
+      ),
+    );
+    if (days != null) _update(widget.controller.settings.copyWith(launchWindowDays: days));
   }
 
   void _savePair() {
@@ -253,6 +275,17 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             value: s.autoArrange,
             onChanged: (v) => _update(s.copyWith(autoArrange: v)),
           ),
+          ListTile(
+            key: const Key('launch-window'),
+            title: const Text('Count launches of'),
+            subtitle: Text(
+              s.launchWindowDays == 0
+                  ? 'All time, for the grid, search and stats'
+                  : '${_windowName(s.launchWindowDays)}, for the grid, search and stats; older launches are deleted',
+            ),
+            onTap: _pickWindow,
+          ),
+          WindowWarning(key: const Key('launch-window-warning'), controller: widget.controller),
           SwitchListTile(
             key: const Key('show-clock'),
             title: const Text('Clock line'),

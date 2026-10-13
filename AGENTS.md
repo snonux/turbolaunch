@@ -228,13 +228,16 @@ Clock leaves a ghost in its cell on phone B and takes it back when enabled.
 Settings saves a pair of a top and a bottom app; "Try it" opens one without
 saving. A pair is an `AppEntry` of its own while both apps are installed, so
 search, launch counts and the grid treat it like any app. Opening it starts
-the first app, asks the accessibility service for
-`GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN`, then starts the second app with
-`FLAG_ACTIVITY_LAUNCH_ADJACENT`. Third-party launchers have no official
-app-pair API, so this still needs checking on a GrapheneOS phone; the
-emulator e2e does not cover it. The 600 ms pause between steps
-(`PAIR_STEP_MILLIS`) is a first guess. Without the service only the first
-app opens.
+the first app, then, `PAIR_STEP_MILLIS` (600 ms) later, the second with
+`FLAG_ACTIVITY_LAUNCH_ADJACENT`. Since Android 12L the WM shell's split
+screen keeps the launch-adjacent root on its side stage, so that launch
+alone splits the screen: the app in front goes on top, the new one below.
+Android 12L removed `GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN` (it fails as an
+invalid action, which once left pairs opening only the top app), so only
+Android 12 and older toggle split screen through the accessibility service
+first, and open only the first app without it. The e2e opens Settings and
+Clock with "Try it" on the API 34 emulator and checks both apps are in
+multi-window tasks.
 
 ## Releasing
 

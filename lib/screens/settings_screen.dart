@@ -176,7 +176,8 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
     setState(
       () => _pairResult = switch (outcome) {
         PairOutcome.split => 'Opened ${first.label} and ${second.label} in split screen.',
-        PairOutcome.noService => 'Opened ${first.label} only: turn on TurboLaunch actions under Accessibility first.',
+        PairOutcome.noService =>
+          'Opened ${first.label} only: this Android needs TurboLaunch actions turned on under Accessibility for pairs.',
         PairOutcome.failed => 'Could not open the pair.',
       },
     );
@@ -321,7 +322,7 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           const Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 4),
             child: Text(
-              'Locking, opening app pairs side by side, and some gesture actions need the opt-in '
+              'Locking and some gesture actions (and app pairs on Android 12 and older) need the opt-in '
               'TurboLaunch actions accessibility service. It only performs those actions and reads '
               'nothing on screen. Gestures start on empty home space.',
             ),

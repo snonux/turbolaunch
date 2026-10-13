@@ -298,6 +298,28 @@ ec=0; clock_battery_present || ec=$?; case $ec in
   1) pass "clock line hides the battery after turning the toggle off" ;;
   *) fail "clock line hides the battery after turning the toggle off (clock-line missing)" ;;
 esac
+# With time and date off too, the clock line goes away; then back on.
+toggle_time_date() {
+  tap_on "TurboLaunch settings" && sleep 3
+  dump
+  for _ in 1 2 3 4 5 6; do
+    grep -q 'Date on the clock line' "$out/ui.xml" && break
+    adb shell input swipe $((w / 2)) $((h * 3 / 4)) $((w / 2)) $((h / 4)) 300; sleep 1; dump
+  done
+  tap_on "Time on the clock line" && sleep 1
+  tap_on "Date on the clock line" && sleep 1
+  adb shell input keyevent KEYCODE_BACK
+  sleep 2; dump
+}
+toggle_time_date; shot no_clock_line
+expect_ui "Back returns home with the clock line off" 'resource-id="search"'
+if grep -q 'resource-id="clock-line"' "$out/ui.xml"; then
+  fail "time, date and battery off hide the clock line"
+else
+  pass "time, date and battery off hide the clock line"
+fi
+toggle_time_date
+expect_ui "clock line back with time and date on" 'resource-id="clock-line"'
 # The gestures section is below the fold; uiautomator only dumps what shows.
 tap_on "TurboLaunch settings" && sleep 3
 dump

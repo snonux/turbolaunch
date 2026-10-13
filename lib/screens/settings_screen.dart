@@ -287,20 +287,28 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
           ),
           WindowWarning(key: const Key('launch-window-warning'), controller: widget.controller),
           SwitchListTile(
-            key: const Key('show-clock'),
-            title: const Text('Clock line'),
-            subtitle: const Text('Time and date at the top; long-press it to hide the grid'),
-            value: s.showClock,
-            onChanged: (v) => _update(s.copyWith(showClock: v)),
+            key: const Key('show-time'),
+            title: const Text('Time on the clock line'),
+            subtitle: const Text('The line at the top; long-press it to hide the grid'),
+            value: s.showTime,
+            onChanged: (v) => _update(s.copyWith(showTime: v)),
+          ),
+          SwitchListTile(
+            key: const Key('show-date'),
+            title: const Text('Date on the clock line'),
+            value: s.showDate,
+            onChanged: (v) => _update(s.copyWith(showDate: v)),
           ),
           SwitchListTile(
             key: const Key('show-battery'),
             title: const Text('Battery on the clock line'),
             subtitle: Text(
-              s.showClock ? 'Off by default; Android already shows the battery' : 'Turn on the clock line first',
+              s.showClockLine
+                  ? 'Off by default; Android already shows the battery'
+                  : 'With all three off there is no clock line',
             ),
             value: s.showBattery,
-            onChanged: s.showClock ? (v) => _update(s.copyWith(showBattery: v)) : null,
+            onChanged: (v) => _update(s.copyWith(showBattery: v)),
           ),
           const Divider(),
           _header('Search', text),

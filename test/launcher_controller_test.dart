@@ -269,6 +269,12 @@ void main() {
     expect(LauncherSettings.fromJson({}).showBattery, isFalse, reason: 'battery off when the key is absent');
     expect(LauncherSettings.fromJson({'showBattery': false}).showBattery, isFalse);
     expect(const LauncherSettings().showBattery, isFalse);
+    final d = LauncherSettings.fromJson({});
+    expect((d.showTime, d.showDate, d.showClockLine), (true, true, true), reason: 'time and date on by default');
+    final off = LauncherSettings.fromJson(const LauncherSettings(showTime: false, showDate: false).toJson());
+    expect((off.showTime, off.showDate, off.showClockLine), (false, false, false));
+    final old = LauncherSettings.fromJson({'showClock': false, 'showBattery': true});
+    expect(old.showClockLine, isFalse, reason: 'an older "clock line off" turns everything off');
   });
 
   test('AppEntry exposes the package name of its key', () {

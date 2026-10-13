@@ -1,0 +1,1 @@
+Choose what the line at the top of the home screen shows: time, date and battery, any of them or none. With none, the line goes away and the grid gets the room.

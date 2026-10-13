@@ -49,7 +49,9 @@ so you can always switch back the same way.
 From top to bottom:
 
 * **The clock line**: time and date (battery optional in settings; off by
-  default because Android already shows it). Long-press it to hide the
+  default because Android already shows it). Settings choose which of the
+  three it shows; with none, the line goes and the grid gets the room.
+  Long-press it to hide the
   grid, for example while sharing your screen (see
   [Quick hide](#gestures)).
 * **Your wallpaper**, with empty space you can double-tap to lock the
@@ -205,8 +207,8 @@ The sliders button next to the search box opens settings:
 * **Sync**, see [Sync between phones](#sync-between-phones).
 * **Wallpaper**: pick a picture for the home screen, the lock screen or
   both. The home screen shows Android's wallpaper through it.
-* **Home grid**: columns and rows (Auto, or a number), whether to show the
-  clock line, and whether to show the battery on it (off by default).
+* **Home grid**: columns and rows (Auto, or a number), and what the clock
+  line shows: time, date and battery (off by default), any of them or none.
 * **Search**: open the keyboard on Home, and icons in the search results.
 * **Gestures**: the accessibility service, double-tap to lock, what each
   swipe does, and your own recorded gestures.

@@ -118,23 +118,43 @@ void main() {
     expect(find.text('87%'), findsOneWidget);
   });
 
-  testWidgets('battery toggle needs the clock line', (tester) async {
-    await start(tester);
+  testWidgets('settings choose what the clock line shows; with nothing on it goes away', (tester) async {
+    await start(tester, {'settings': '{"showBattery": true}'});
+    expect(find.text('87%'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'^\d\d:\d\d$')), findsOneWidget, reason: 'time shown by default');
+
     await openSettings(tester);
-    await scrollTo(tester, find.byKey(const Key('show-clock')));
-    await tester.tap(find.byKey(const Key('show-clock')));
+    for (final k in ['show-time', 'show-date']) {
+      await scrollTo(tester, find.byKey(Key(k)));
+      await tester.tap(find.byKey(Key(k)));
+      await tester.pumpAndSettle();
+    }
+    source.pressHome();
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('clock-line')), findsOneWidget, reason: 'battery alone keeps the line');
+    expect(find.text('87%'), findsOneWidget);
+    expect(find.textContaining(RegExp(r'^\d\d:\d\d$')), findsNothing, reason: 'time off');
+
+    await openSettings(tester);
     await scrollTo(tester, find.byKey(const Key('show-battery')));
-    expect(find.text('Turn on the clock line first'), findsOneWidget);
-    final tile = tester.widget<SwitchListTile>(find.byKey(const Key('show-battery')));
-    expect(tile.onChanged, isNull);
-    expect(tile.value, isFalse);
     await tester.tap(find.byKey(const Key('show-battery')));
     await tester.pumpAndSettle();
-    expect(tester.widget<SwitchListTile>(find.byKey(const Key('show-battery'))).value, isFalse);
-    final raw = (await SharedPreferences.getInstance()).getString('settings');
-    final json = raw == null ? <String, Object?>{} : Map<String, Object?>.from(jsonDecode(raw) as Map);
-    expect(LauncherSettings.fromJson(json).showBattery, isFalse);
+    expect(find.text('With all three off there is no clock line'), findsOneWidget);
+    source.pressHome();
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('clock-line')), findsNothing);
+    expect(find.byKey(const Key('home-grid')), findsOneWidget);
+
+    final raw = (await SharedPreferences.getInstance()).getString('settings')!;
+    final s = LauncherSettings.fromJson(Map<String, Object?>.from(jsonDecode(raw) as Map));
+    expect((s.showTime, s.showDate, s.showBattery, s.showClockLine), (false, false, false, false));
+  });
+
+  testWidgets('date only: the line shows the date without the time', (tester) async {
+    await start(tester, {'settings': '{"showTime": false}'});
+    expect(find.byKey(const Key('clock-line')), findsOneWidget);
+    expect(find.textContaining(RegExp(r'^\d\d:\d\d$')), findsNothing);
+    expect(find.textContaining(RegExp(r'^(Mon|Tue|Wed|Thu|Fri|Sat|Sun) ')), findsOneWidget);
   });
 
   testWidgets('tapping the search box lists every app; tapping one launches it and puts it on the grid', (

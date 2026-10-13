@@ -61,7 +61,9 @@ but this phone lacks keeps its ranked cell as a ghost. Apps with no
 launches put there by "Add to home" come after the ranked ones. Icons move
 only while the home screen is not in front (`setInFront`, from the app
 lifecycle) or on a Home press, never under a finger; until then a pass only
-drops apps that left the grid.
+drops apps that left the grid. The ghosts are stored (`homeGhosts`, and per
+size in `homeLayouts`), because a start after a reboot opens with the home
+screen in front and would otherwise have none until it is left.
 
 With the setting off: a placed app keeps its cell; only uninstalling it,
 hiding it, "Remove from home", or shrinking the grid below its cell frees
@@ -219,9 +221,9 @@ alone splits the screen: the app in front goes on top, the new one below.
 Android 12L removed `GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN` (it fails as an
 invalid action, which once left pairs opening only the top app), so only
 Android 12 and older toggle split screen through the accessibility service
-first, and open only the first app without it. The e2e saves a pair and
-opens it from search on the API 34 emulator and checks both apps are in a
-multi-window task.
+first, and open only the first app without it. The e2e opens Settings and
+Clock with "Try it" on the API 34 emulator and checks both apps are in
+multi-window tasks.
 
 ## Releasing
 

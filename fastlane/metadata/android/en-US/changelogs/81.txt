@@ -1,0 +1,1 @@
+Ghost icons no longer go missing after a reboot: the home screen remembers them, so the first start shows them in their cells.

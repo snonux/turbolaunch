@@ -80,7 +80,10 @@ class LauncherBackup {
     if (removedFromHome != null) await store.setExcluded(removedFromHome!);
     if (pairs != null) await store.setPairs(pairs!);
     if (launchCounts != null && !syncOn) await store.setCounts(launchCounts!);
-    if (homeSlots != null) await store.setSlots(homeSlots!);
+    if (homeSlots != null) {
+      await store.setSlots(homeSlots!);
+      await store.setGhosts(const {});
+    }
   }
 }
 

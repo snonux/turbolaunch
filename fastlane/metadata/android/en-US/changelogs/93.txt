@@ -1,0 +1,1 @@
+App pairs open in split screen again on Android 12L and newer, GrapheneOS included: Android dropped the split screen action they relied on, so only the top app opened. The bottom app now starts next to it, and pairs no longer need the accessibility service there.

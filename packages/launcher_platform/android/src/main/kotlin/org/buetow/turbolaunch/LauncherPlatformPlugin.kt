@@ -357,25 +357,38 @@ class LauncherPlatformPlugin :
         }
 
     /**
-     * Phase 1 spike: open two apps side by side. Third-party launchers have no
-     * app-pair API, so this starts the first app, asks the opt-in accessibility
-     * service to toggle split screen, then starts the second app adjacent to it.
-     * Returns "split" when every step ran, "no_service" when the service is off
-     * (only the first app is opened), or "failed".
+     * Opens two apps side by side. Third-party launchers have no app-pair API.
+     * Since Android 12L the window manager shell keeps a launch root for
+     * FLAG_ACTIVITY_LAUNCH_ADJACENT: an app started with it goes to the bottom
+     * of a new split and the app in front moves to the top. So this starts the
+     * first app, then the second adjacent to it, and needs no accessibility
+     * service. Android 12L dropped GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN (it fails
+     * as an invalid action), so only older versions toggle split screen through
+     * the opt-in service first. Returns "split" when every step ran,
+     * "no_service" when an older Android needs the service and it is off (only
+     * the first app is opened), or "failed".
      */
     private fun launchPair(first: AppKey?, second: AppKey?, result: MethodChannel.Result) {
         if (!launch(first)) return result.success("failed")
+        val adjacent = Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
+        val launchSecond = Runnable {
+            val outcome = if (launch(second, adjacent)) "split" else "failed"
+            Log.i(TAG, "app pair: $outcome")
+            result.success(outcome)
+        }
+        if (Build.VERSION.SDK_INT >= 32) {
+            main.postDelayed(launchSecond, PAIR_STEP_MILLIS)
+            return
+        }
         val service = TurboLaunchAccessibilityService.instance()
         if (service == null) return result.success("no_service")
         main.postDelayed({
-            if (!service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN)) {
+            if (service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_TOGGLE_SPLIT_SCREEN)) {
+                main.postDelayed(launchSecond, PAIR_STEP_MILLIS)
+            } else {
+                Log.w(TAG, "split screen toggle failed")
                 result.success("failed")
-                return@postDelayed
             }
-            main.postDelayed({
-                val adjacent = Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK
-                result.success(if (launch(second, adjacent)) "split" else "failed")
-            }, PAIR_STEP_MILLIS)
         }, PAIR_STEP_MILLIS)
     }
 

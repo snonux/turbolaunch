@@ -9,7 +9,8 @@
 # notification shade, a swipe up the search (and over its results closes it, as does leaving for an app and coming back), and a gesture recorded in settings
 # quick settings, that the Screenshot tile shoots the open app, that Sync now works (against a Garage of its own,
 # started by tool/garage_test.sh when Docker runs), that settings sees
-# the accessibility service and shows the launch stats, and that a double-tap on
+# the accessibility service and shows the launch stats, that an app pair opens
+# in split screen, and that a double-tap on
 # empty home space locks the phone. Screenshots, UI dumps and the log go to
 # build/e2e-android/; at the end tool/bench_android.sh measures speed and
 # tool/shots_android.sh takes the guide's
@@ -327,9 +328,33 @@ if [ "$picks" = 1 ] && node_has pick-result Settings; then pass "pair picker sea
 else fail "pair picker search finds only Settings ($picks results)"; fi
 adb shell input keyevent KEYCODE_ENTER; sleep 2; dump
 if node_has pair-first Settings; then pass "Enter picks Settings as the top app"; else fail "Enter picks Settings as the top app"; fi
-adb shell input keyevent KEYCODE_BACK
+# 8b. Try it with Clock below opens both apps in split screen: the second
+#     app's launch-adjacent start splits the screen (Android 12L and newer
+#     have no split screen accessibility action), so both tasks end up in
+#     multi-window mode.
+tap_on pair-second && sleep 2
+adb shell input text "clock"; sleep 2
+adb shell input keyevent KEYCODE_ENTER; sleep 2; dump
+if node_has pair-second Clock; then pass "Enter picks Clock as the bottom app"; else fail "Enter picks Clock as the bottom app"; fi
+scroll_to 'Try it' down || true
+tap_on "Try it" && sleep 5
+shot pair_split
+split_tasks() { adb shell dumpsys activity activities | grep 'Task{' | grep 'mode=multi-window' || true; }
+tasks=$(split_tasks)
+if grep -q 'com.android.settings' <<<"$tasks" && grep -q 'deskclock' <<<"$tasks"; then
+  pass "app pair opens Settings and Clock in split screen"
+else
+  fail "app pair opens Settings and Clock in split screen"
+  adb shell dumpsys activity activities | grep 'Task{' | head -12
+  adb logcat -d | grep -i 'TurboLaunch\|LAUNCH_ADJACENT\|launch-adjacent' | tail -10
+fi
+# Close the pair so later steps start both apps full screen again.
+adb shell input keyevent KEYCODE_HOME; sleep 2
+adb shell am force-stop com.android.settings
+adb shell am force-stop com.google.android.deskclock
+adb shell am force-stop com.android.deskclock
 sleep 2; dump
-expect_ui "Back returns home" 'resource-id="search"'
+expect_ui "Home returns home after the pair" 'resource-id="search"'
 
 # 9. Double-tap on empty home space locks the phone through the service. Both
 #    taps go in one shell so they land within the 300 ms double-tap timeout,

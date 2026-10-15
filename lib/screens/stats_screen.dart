@@ -55,7 +55,9 @@ class StatsScreen extends StatelessWidget {
                         // Rows count from the bottom, where the grid starts filling.
                         subtitle: Text(
                           [
-                            s.cell == null
+                            s.inBar
+                                ? 'In the quick bar'
+                                : s.cell == null
                                 ? 'Not on home'
                                 : 'Home row ${rows - s.cell!.row}, column ${s.cell!.col + 1}',
                             if (synced) '${s.here} here',

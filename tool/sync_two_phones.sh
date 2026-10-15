@@ -13,6 +13,7 @@
 #   B disables Clock: its cell shows a ghost of Clock (tapping it only says
 #     so), also after a cold start onto the home screen, and Clock comes back
 #     to that cell when it is enabled again.
+#   A puts Camera into its quick bar: after both sync, B's bar has it too.
 #   B counts launches of the last 7 days, A of 30: after both sync, A's Sync
 #     screen and stats warn about it.
 #
@@ -100,6 +101,26 @@ s3_clear() {
   for key in $(s3 GET "?list-type=2&prefix=turbolaunch/devices/" | grep -o '<Key>[^<]*</Key>' | sed 's/<[^>]*>//g'); do
     s3 DELETE "$key" >/dev/null
   done
+}
+
+# Exit 0 if a node with text or content-desc $1 sits inside the quick bar.
+in_bar() {
+  python3 - "$out/ui.xml" "$1" <<'PY'
+import re, sys
+xml, want = open(sys.argv[1]).read(), sys.argv[2]
+bar = re.search(r'resource-id="quick-bar"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+if not bar:
+    sys.exit(2)
+x1, y1, x2, y2 = map(int, bar.groups())
+for node in re.findall(r'<node [^>]*>', xml):
+    attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', node))
+    if not any(want in attrs.get(k, '') for k in ('text', 'content-desc')):
+        continue
+    bx1, by1, bx2, by2 = map(int, re.findall(r'\d+', attrs['bounds']))
+    if x1 <= (bx1 + bx2) // 2 <= x2 and y1 <= (by1 + by2) // 2 <= y2:
+        sys.exit(0)
+sys.exit(1)
+PY
 }
 
 # TurboLaunch fresh on the current phone: data cleared, home app, service on.
@@ -293,6 +314,30 @@ if [ "$(centre Clock)" = "$clock_a" ] && ! grep -q "on your other phones" "$out/
 else
   fail "B: Clock back in its cell (now at $(centre Clock))"
 fi
+
+# A puts Camera into its quick bar (long-press menu); after both sync, B
+# has Camera in its quick bar too.
+on $a
+dump
+xy=$(centre Camera)
+if [ -n "$xy" ]; then
+  adb shell input swipe $xy $xy 900
+  sleep 2
+  tap_on "Add to quick bar" && sleep 2
+fi
+dump; shot quick_bar
+if in_bar Camera; then pass "A: Camera in the quick bar"; else fail "A: Camera in the quick bar"; fi
+tap_on "TurboLaunch settings" && sleep 3
+tap_on "On, 1 other phones" && sleep 2
+sync_now 'Synced with 1 other phone'
+home
+on $b
+tap_on "TurboLaunch settings" && sleep 3
+tap_on "On, 1 other phones" && sleep 2
+sync_now 'Synced with 1 other phone'
+home
+dump; shot quick_bar
+if in_bar Camera; then pass "B: Camera in the quick bar from A"; else fail "B: Camera in the quick bar from A"; fi
 
 # B counts launches of 7 days, A of the default 30: A warns about it.
 on $b

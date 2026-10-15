@@ -27,9 +27,12 @@ feature with screenshots and a short recording.
   nearest the thumb; or, if you prefer, icons that never move once placed.
   Only the last 30 days count (you can pick another window), so the grid
   follows what you use now
+* A quick launch bar under the grid for the apps you rarely open but want
+  fast (camera, notes): drag them in, the same bar on all your phones
 * App shortcuts ("New note", "Navigate home") are search results too
 * Search box always on screen at the bottom; Home clears it
-* Long-press an app: remove from or add to home, hide, app info, uninstall
+* Long-press an app: drag it into the quick bar, or remove from or add to
+  home, hide, app info, uninstall
 * Time, date and battery on top, each optional (battery off by default); long-press it to hide the grid (quick hide)
 * Double-tap empty home space to lock; swipe up to search, down for
   notifications; set any swipe, or a gesture you draw, to open an app, the

@@ -24,7 +24,8 @@ tool/e2e_android.sh build/app/outputs/flutter-apk/app-x86_64-release.apk  # emul
 The Android script installs the APK, turns on the accessibility service
 (uiautomator sees Flutter's text only then), makes it the home app, swipes
 down for the shade, searches and launches Settings with Enter, presses Home,
-checks the grid, menu, quick hide, settings and stats, double-taps to lock,
+checks the grid, the quick bar (drag in, launch, off switch, drag out), menu,
+quick hide, settings and stats, double-taps to lock,
 checks the log, and leaves screenshots in `build/e2e-android/`. Extend it with
 each feature a PR adds; the widget tests in `test/` cover the logic on the
 host with `FakeAppSource`. Anything that can only be checked on a real phone
@@ -47,9 +48,9 @@ rejects 25+).
 | `lib/services/gestures.dart` | Swipe gestures: the stroke recognizer and the actions a gesture can run |
 | `lib/services/home_grid.dart` | Pure placement rules for the home grid and the automatic grid size |
 | `lib/services/launcher_store.dart` | Settings and state in SharedPreferences |
-| `lib/services/sync.dart` | S3 sync: the per-phone file, sync keys, shared cells |
+| `lib/services/sync.dart` | S3 sync: the per-phone file, sync keys, shared cells, the quick bar |
 | `lib/services/s3_config.dart`, `s3_object_client.dart` | Copied from Quicklog (only the default bucket differs); keep them in step |
-| `lib/screens/` | Home screen (clock line, grid, results, search box, gestures), settings, stats, sync |
+| `lib/screens/` | Home screen (clock line, grid, quick bar, results, search box, gestures), settings, stats, sync |
 | `packages/launcher_platform/` | Kotlin plugin: LauncherApps, icons and their disk cache, launching, package, profile and Home events, file dialogs, the accessibility service |
 
 ### Home grid rules
@@ -82,6 +83,29 @@ the app off the grid until "Add to home". The automatic size is one column
 per 80 dp and one row per 96 dp (more with bigger labels); settings can
 override either. The grid ignores the size while the keyboard is open, so
 typing never cuts cells.
+
+### Quick launch bar
+
+A row between the grid and the search box for apps put there by hand
+(Paul, 2026-10-15): `quickBar` (a list of keys, left to right) and
+`quickBarChanged` in the store, one slot per grid column. On by default
+(`quickBar` in settings); while on, it always takes its row, empty or not,
+and empty it shows "Drag apps here for quick launch". It is a tinted,
+outlined panel so it reads as a dock, not a grid row. Bar apps join the
+apps the grid leaves out (`_offGrid`: removed from home, hidden, in the
+bar), so they never show twice; search still lists them, and launches from
+the bar count like any other. Grid cells and bar apps are
+`LongPressDraggable`s (`_Liftable`): a long-press lifts them, and one let go
+without moving opens the menu as before (the e2e's `input swipe xy xy 900`
+long-press still gets the menu). Drop on a bar slot to add or reorder,
+drop a bar app on the grid to take it out; the menu has "Add to quick bar"
+and "Remove from quick bar" too. Hiding an app takes it out of the bar;
+uninstalling leaves a ghost, as with sync. Off, the grid gets its row back
+and the bar keeps its apps. Sync carries `bar` (sync keys) and
+`barChanged`; the newest change on any phone replaces the bar everywhere
+(`newerBar`); a phone that never changed its bar sends none. An entry for
+an app the phone lacks is kept as its sync key and drawn as a ghost; it
+turns into the app once installed.
 
 Each grid size keeps its own cells (`homeLayouts`, by `rowsxcols`):
 rotating the screen changes the size, and turning back brings back that
@@ -204,7 +228,9 @@ is random, made on first use and never exported.
   sync, or since sync was switched on), the home screen shows a warning
   that opens the Sync screen.
 * With sync on, an import leaves the launch counts out (they would count
-  twice).
+  twice). An imported quick bar counts as a change made at the import.
+* The quick bar: each file carries `bar` and `barChanged`; the newest change
+  wins (see "Quick launch bar" above).
 
 `test/sync_test.dart` covers this with an in-memory bucket.
 The live tests never depend on an outside server (snonux, 2026-10-10):
@@ -220,8 +246,9 @@ server.
 emulator (AVD `phone-b`, made from the first one's system image, port
 5556) and checks two phones end to end: the phone with fewer launches takes over the other's grid
 (same cells on screen), the other keeps its own and gets the new app in the
-shared cell, both stats screens show the summed counts, and a disabled
-Clock leaves a ghost in its cell on phone B and takes it back when enabled.
+shared cell, both stats screens show the summed counts, a disabled
+Clock leaves a ghost in its cell on phone B and takes it back when enabled,
+and Camera put into A's quick bar shows in B's after both sync.
 
 ### App pairs
 
@@ -333,3 +360,4 @@ From the plan, one PR per phase:
    screenshots and GIFs, fdroiddata merge request.
 5. **S3 sync** (done): Quicklog's S3 client, per-device files, summed
    launch counts and shared cells, ghosts for apps a phone lacks.
+6. **Quick launch bar** (0.3.9): a hand-picked row under the grid, synced.

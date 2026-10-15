@@ -275,6 +275,17 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             value: s.autoArrange,
             onChanged: (v) => _update(s.copyWith(autoArrange: v)),
           ),
+          SwitchListTile(
+            key: const Key('quick-bar-enabled'),
+            title: const Text('Quick launch bar'),
+            subtitle: Text(
+              s.quickBar
+                  ? 'A row under the grid for apps you put there; long-press an app and drag it in'
+                  : 'Off: the grid gets its row back, the bar keeps its apps',
+            ),
+            value: s.quickBar,
+            onChanged: (v) => _update(s.copyWith(quickBar: v)),
+          ),
           ListTile(
             key: const Key('launch-window'),
             title: const Text('Count launches of'),

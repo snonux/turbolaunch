@@ -26,6 +26,7 @@ class LauncherSettings {
     this.doubleTapLock = true,
     this.gestures = Gestures.defaults,
     this.launchWindowDays = kDefaultLaunchWindowDays,
+    this.quickBar = true,
   });
 
   /// 0 means automatic, from the screen size.
@@ -66,6 +67,10 @@ class LauncherSettings {
   /// search and stats; older ones are purged. 0 counts every launch.
   final int launchWindowDays;
 
+  /// The quick launch bar under the grid, with the apps put there by hand.
+  /// Off, the grid gets its row back; the bar's apps are kept.
+  final bool quickBar;
+
   GestureAction gestureAction(String code) =>
       gestures[code] == null ? GestureAction.none : GestureAction.decode(gestures[code]!);
 
@@ -87,6 +92,7 @@ class LauncherSettings {
     bool? doubleTapLock,
     Map<String, String>? gestures,
     int? launchWindowDays,
+    bool? quickBar,
   }) => LauncherSettings(
     gridRows: gridRows ?? this.gridRows,
     gridCols: gridCols ?? this.gridCols,
@@ -102,6 +108,7 @@ class LauncherSettings {
     doubleTapLock: doubleTapLock ?? this.doubleTapLock,
     gestures: gestures ?? this.gestures,
     launchWindowDays: launchWindowDays ?? this.launchWindowDays,
+    quickBar: quickBar ?? this.quickBar,
   );
 
   Map<String, Object> toJson() => {
@@ -119,6 +126,7 @@ class LauncherSettings {
     'doubleTapLock': doubleTapLock,
     'gestures': gestures,
     'launchWindowDays': launchWindowDays,
+    'quickBar': quickBar,
   };
 
   factory LauncherSettings.fromJson(Map<String, Object?> j) {
@@ -141,6 +149,7 @@ class LauncherSettings {
       doubleTapLock: j['doubleTapLock'] as bool? ?? true,
       gestures: _gestures(j),
       launchWindowDays: ((j['launchWindowDays'] as num?)?.toInt() ?? kDefaultLaunchWindowDays).clamp(0, 3650),
+      quickBar: j['quickBar'] as bool? ?? true,
     );
   }
 
@@ -161,8 +170,8 @@ class LauncherSettings {
 }
 
 /// Everything TurboLaunch remembers, on the device in SharedPreferences:
-/// launch counts, home cells, apps removed from the grid, hidden apps, app
-/// pairs, the settings, and the sync settings and what the last sync brought.
+/// launch counts, home cells, apps removed from the grid, hidden apps, the
+/// quick launch bar, app pairs, the settings, and the sync settings and what the last sync brought.
 class LauncherStore {
   LauncherStore(this._prefs);
 
@@ -191,6 +200,8 @@ class LauncherStore {
   static const _layoutSize = 'homeSlotsSize';
   static const _layouts = 'homeLayouts';
   static const _ghosts = 'homeGhosts';
+  static const _quickBar = 'quickBar';
+  static const _quickBarChanged = 'quickBarChanged';
 
   Map<String, Object?> _json(String key) {
     final raw = _prefs.getString(key);
@@ -274,6 +285,16 @@ class LauncherStore {
 
   Set<String> get excluded => (_prefs.getStringList(_excluded) ?? const []).toSet();
   Future<void> setExcluded(Set<String> v) => _prefs.setStringList(_excluded, v.toList()..sort());
+
+  /// The apps in the quick launch bar, left to right: app keys, or the sync
+  /// key of an app another phone put there that this phone lacks.
+  List<String> get quickBar => _prefs.getStringList(_quickBar) ?? const [];
+  Future<void> setQuickBar(List<String> v) => _prefs.setStringList(_quickBar, v);
+
+  /// When the bar was last changed, here or on the phone it was synced from;
+  /// with sync, the newest change wins on every phone. Null until changed.
+  DateTime? get quickBarChanged => DateTime.tryParse(_prefs.getString(_quickBarChanged) ?? '');
+  Future<void> setQuickBarChanged(DateTime v) => _prefs.setString(_quickBarChanged, v.toUtc().toIso8601String());
 
   Set<String> get hidden => (_prefs.getStringList(_hidden) ?? const []).toSet();
   Future<void> setHidden(Set<String> v) => _prefs.setStringList(_hidden, v.toList()..sort());

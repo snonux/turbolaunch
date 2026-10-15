@@ -4,7 +4,7 @@
 # app and has its accessibility service on (tool/e2e_android.sh leaves it so,
 # and calls this at its end). The emulator's own apps only, so no personal
 # data. Launches a few apps through the search box to fill the home grid,
-# then captures, at a phone-like 720x1600, into build/shots-android/:
+# puts two of them into the quick bar, then captures, at a phone-like 720x1600, into build/shots-android/:
 #
 #   home.png search.png menu.png settings.png stats.png search.mp4
 #
@@ -84,6 +84,19 @@ for q in clk:4 cam:3 chrm:3 cntcts:2 fls:2 msgs:2 phn:1 clndr:1 gall:1 mps:1 ytb
 done
 in_front || home
 sleep 2
+# Two apps in the quick bar, through the long-press menu.
+for q in Camera Phone; do
+  dump
+  xy=$(centre "$q")
+  [ -n "$xy" ] || continue
+  adb shell input swipe $xy $xy 900
+  sleep 2
+  tap_on "Add to quick bar" || adb shell input keyevent KEYCODE_BACK
+  sleep 2
+done
+home
+in_front || home
+sleep 2
 shot home
 
 # Search: matched letters highlighted, app shortcuts among the results.
@@ -95,7 +108,7 @@ home
 
 # The long-press menu of a home cell.
 dump
-xy=$(centre "Camera")
+xy=$(centre "Clock")
 if [ -n "$xy" ]; then
   adb shell input swipe $xy $xy 900
   sleep 2

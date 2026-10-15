@@ -10,10 +10,10 @@ S3 bucket.
 **[Read the guide](docs/guide/README.md)**: installing, then every
 feature with screenshots and a short recording.
 
-| | |
-|---|---|
-| ![Home screen: clock on top, the most-launched apps near the bottom, the search box below](docs/guide/images/home.png) | ![Typing "clk" and Enter opens Clock](docs/guide/images/search.gif) |
-| The home screen | Type, Enter, done |
+| | | |
+|---|---|---|
+| ![Home screen: clock on top, the most-launched apps near the bottom, the quick launch bar with Camera and Phone, the search box below](docs/guide/images/home.png) | ![Typing "clk" and Enter opens Clock](docs/guide/images/search.gif) | ![Clock dragged from the grid into the quick launch bar, then opened from there](docs/guide/images/quickbar.gif) |
+| The home screen | Type, Enter, done | Drag an app into the quick bar |
 
 ## Highlights
 
@@ -27,9 +27,12 @@ feature with screenshots and a short recording.
   nearest the thumb; or, if you prefer, icons that never move once placed.
   Only the last 30 days count (you can pick another window), so the grid
   follows what you use now
+* A quick launch bar under the grid for the apps you rarely open but want
+  fast (camera, notes): drag them in, the same bar on all your phones
 * App shortcuts ("New note", "Navigate home") are search results too
 * Search box always on screen at the bottom; Home clears it
-* Long-press an app: remove from or add to home, hide, app info, uninstall
+* Long-press an app: drag it into the quick bar, or remove from or add to
+  home, hide, app info, uninstall
 * Time, date and battery on top, each optional (battery off by default); long-press it to hide the grid (quick hide)
 * Double-tap empty home space to lock; swipe up to search, down for
   notifications; set any swipe, or a gesture you draw, to open an app, the

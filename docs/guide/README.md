@@ -9,16 +9,17 @@ emulator's own.
 2. [The home screen](#the-home-screen)
 3. [Searching](#searching)
 4. [The home grid](#the-home-grid)
-5. [The app menu and hidden apps](#the-app-menu-and-hidden-apps)
-6. [Gestures](#gestures)
-7. [App pairs](#app-pairs)
-8. [Work profile apps](#work-profile-apps)
-9. [Settings](#settings)
-10. [Launch stats](#launch-stats)
-11. [Moving to a new phone](#moving-to-a-new-phone)
-12. [Sync between phones](#sync-between-phones)
-13. [Privacy and permissions](#privacy-and-permissions)
-14. [Building it yourself](#building-it-yourself)
+5. [The quick launch bar](#the-quick-launch-bar)
+6. [The app menu and hidden apps](#the-app-menu-and-hidden-apps)
+7. [Gestures](#gestures)
+8. [App pairs](#app-pairs)
+9. [Work profile apps](#work-profile-apps)
+10. [Settings](#settings)
+11. [Launch stats](#launch-stats)
+12. [Moving to a new phone](#moving-to-a-new-phone)
+13. [Sync between phones](#sync-between-phones)
+14. [Privacy and permissions](#privacy-and-permissions)
+15. [Building it yourself](#building-it-yourself)
 
 ## Installing
 
@@ -44,7 +45,7 @@ so you can always switch back the same way.
 
 ## The home screen
 
-![The home screen: time and date on top, a grid of apps near the bottom, the search box below](images/home.png)
+![The home screen: time and date on top, a grid of apps near the bottom, the quick launch bar with Camera and Phone, the search box below](images/home.png)
 
 From top to bottom:
 
@@ -58,6 +59,8 @@ From top to bottom:
   phone.
 * **The home grid** of your most-used apps, the most-launched nearest your
   thumb.
+* **The quick launch bar**, a tinted row of apps you put there yourself
+  (see [below](#the-quick-launch-bar)).
 * **The search box**, always there at the bottom, with the settings button
   beside it.
 
@@ -117,14 +120,42 @@ The grid sizes itself from the screen: one column per 80 dp and one row
 per 96 dp, fewer with bigger labels. Set the rows and columns yourself under
 **Home grid** in settings if you want more or fewer.
 
+## The quick launch bar
+
+Some apps you rarely open, but when you do, it has to be fast: the camera,
+a note app. The quick launch bar is the tinted, outlined row between the
+grid and the search box, for exactly those. It starts empty and says
+**Drag apps here for quick launch**; the note goes once an app is in.
+
+![Clock, long-pressed on the grid, dragged into the quick launch bar next to Camera and Phone, then opened with one tap](images/quickbar.gif)
+
+* **Long-press an app on the grid and drag it** onto the bar. It drops into
+  the slot you let go on; the bar holds one app per grid column. Apps you
+  can only reach through search go in with **Add to quick bar** in their
+  long-press menu.
+* **Drag along the bar** to reorder, and **drag an app out onto the grid**
+  (or use **Remove from quick bar**) to take it out.
+* A long-press that you let go without moving still opens the menu.
+* Launches from the bar count like any other, in the stats and with sync,
+  but an app in the bar never shows on the grid as well; it stays in
+  search.
+* With [sync](#sync-between-phones) on, the bar is the same on all your
+  phones: the latest change on any phone wins. An app a phone lacks shows
+  in the bar as a faded ghost.
+* **Quick launch bar** under **Home grid** in settings turns it off; the
+  grid gets its row back, and the bar keeps its apps for when you turn it
+  on again.
+
 ## The app menu and hidden apps
 
-![The long-press menu of Camera: Remove from home, Hide, App info, Uninstall](images/menu.png)
+![The long-press menu of Clock: Add to quick bar, Remove from home, Hide, App info, Uninstall](images/menu.png)
 
 Long-press an app, on the grid or in the search results:
 
 * **Remove from home** takes it off the grid and keeps it off. It stays in
   search. **Add to home** brings it back.
+* **Add to quick bar** and **Remove from quick bar**, see
+  [The quick launch bar](#the-quick-launch-bar).
 * **Hide** takes it out of search and off the grid. Hidden apps are listed
   in settings under **Hidden apps**, with **Unhide**. Typing a hidden
   app's full name still finds it, and its menu then offers **Unhide**.
@@ -207,8 +238,8 @@ The sliders button next to the search box opens settings:
 * **Sync**, see [Sync between phones](#sync-between-phones).
 * **Wallpaper**: pick a picture for the home screen, the lock screen or
   both. The home screen shows Android's wallpaper through it.
-* **Home grid**: columns and rows (Auto, or a number), and what the clock
-  line shows: time, date and battery (off by default), any of them or none.
+* **Home grid**: columns and rows (Auto, or a number), arrange by launches,
+  the launch window, the quick launch bar, and what the clock line shows: time, date and battery (off by default), any of them or none.
 * **Search**: open the keyboard on Home, and icons in the search results.
 * **Gestures**: the accessibility service, double-tap to lock, what each
   swipe does, and your own recorded gestures.
@@ -228,7 +259,8 @@ your phones, with this phone's share beside each.
 ## Moving to a new phone
 
 **Export settings** under **Your data** saves everything in one JSON file:
-settings, app pairs, hidden apps, launch counts and the home grid. Copy it
+settings, app pairs, hidden apps, the quick launch bar, launch counts and
+the home grid. Copy it
 to the new phone and use **Import settings** there. Android's own file
 dialogs do the saving and opening, so TurboLaunch needs no storage
 permission.
@@ -283,6 +315,9 @@ when they last synced.
   once and shows what went wrong.
 * When sync is on but has not worked for a week, a red line on the home
   screen asks you to check it; tap it to open the sync settings.
+* The [quick launch bar](#the-quick-launch-bar) travels too: each phone
+  sends its bar with the time it last changed, and the newest change
+  replaces the bar on the others at their next sync.
 * Files are plain JSON, without encryption of their own: use a bucket only
   you can read.
 

@@ -36,7 +36,11 @@ class SearchResult {
 }
 
 /// One line of the stats screen: launches on every phone, and on this one.
-typedef AppStat = ({AppEntry app, int launches, int here, Cell? cell});
+typedef AppStat = ({AppEntry app, int launches, int here, Cell? cell, bool inBar});
+
+/// One app in the quick launch bar: [app] when it is installed here, else
+/// the name of the app another phone put there, drawn as a ghost.
+typedef QuickBarItem = ({String key, AppEntry? app, String label});
 
 /// Why "Sync now" failed; [message] is shown as is.
 class SyncException implements Exception {
@@ -76,6 +80,8 @@ class LauncherController extends ChangeNotifier {
     _slots = store.slots;
     _excluded = store.excluded;
     _hidden = store.hidden;
+    _bar = store.quickBar;
+    _barChanged = store.quickBarChanged;
     _settings = store.settings;
     _quickHide = store.quickHide;
     _sync = store.syncConfig;
@@ -149,6 +155,11 @@ class LauncherController extends ChangeNotifier {
   late Map<Cell, String> _slots;
   late Set<String> _excluded;
   late Set<String> _hidden;
+
+  /// The quick launch bar, left to right (see [LauncherStore.quickBar]), and
+  /// when it last changed.
+  late List<String> _bar;
+  DateTime? _barChanged;
   late LauncherSettings _settings;
   late bool _quickHide;
   late SyncConfig _sync;
@@ -286,6 +297,37 @@ class LauncherController extends ChangeNotifier {
   int get cols => _cols;
 
   bool isHidden(AppEntry a) => _hidden.contains(a.key);
+
+  /// The quick launch bar's apps, left to right, ghosts included.
+  List<QuickBarItem> get quickBar {
+    final byKey = {for (final a in _apps) a.key: a};
+    return [
+      for (final key in _bar)
+        if (byKey[_barLocal(key)] case final app?)
+          (key: key, app: app, label: app.label)
+        else
+          (key: key, app: null, label: ghostLabel(_remote, _syncKeyOf(key))),
+    ];
+  }
+
+  /// The app key of a bar entry: a missing app's sync key turns into the app
+  /// key once the app is installed.
+  String _barLocal(String key) => _localKeys[key] ?? key;
+
+  bool isInQuickBar(AppEntry a) => _bar.any((k) => _barLocal(k) == a.key);
+
+  /// How many apps the bar holds: one per grid column.
+  int get quickBarSlots => _cols > 0 ? _cols : 5;
+
+  bool get quickBarFull => _bar.length >= quickBarSlots;
+
+  /// Apps the grid leaves out: removed from home, hidden, or in the bar.
+  Set<String> get _offGrid => {
+    ..._excluded,
+    ..._hidden,
+    if (_settings.quickBar)
+      for (final k in _bar) _barLocal(k),
+  };
   bool isOnHome(AppEntry a) => _slots.containsValue(a.key);
 
   /// Cells the other phones keep for an app this phone lacks, with that
@@ -432,8 +474,12 @@ class LauncherController extends ChangeNotifier {
       final parts = key.substring(5).split('|');
       if (parts.length == 2) return 'pair:${_syncKeyOf(parts[0])}|${_syncKeyOf(parts[1])}';
     }
+    // Already a sync key: an app another phone has and this one lacks.
+    if (!_serialSuffix.hasMatch(key)) return key;
     return appSyncKey(key, otherProfile: !key.endsWith('#0'));
   }
+
+  static final _serialSuffix = RegExp(r'#\d+$');
 
   /// The installed app with [key], if any.
   AppEntry? appByKey(String key) => _installed.where((a) => a.key == key).firstOrNull;
@@ -441,10 +487,12 @@ class LauncherController extends ChangeNotifier {
   /// Launch counts with each app's cell, most-launched first; for the stats screen.
   List<AppStat> get stats {
     final cells = {for (final e in _slots.entries) e.value: e.key};
+    final bar = _settings.quickBar ? {for (final k in _bar) _barLocal(k)} : const <String>{};
     final counts = totals;
     return [
       for (final a in _apps)
-        if ((counts[a.key] ?? 0) > 0) (app: a, launches: counts[a.key]!, here: _counts[a.key] ?? 0, cell: cells[a.key]),
+        if ((counts[a.key] ?? 0) > 0)
+          (app: a, launches: counts[a.key]!, here: _counts[a.key] ?? 0, cell: cells[a.key], inBar: bar.contains(a.key)),
     ]..sort((a, b) => a.launches != b.launches ? b.launches.compareTo(a.launches) : _byLabel(a.app, b.app));
   }
 
@@ -532,9 +580,15 @@ class LauncherController extends ChangeNotifier {
     // The other phones' cells, with the apps installed here under their app
     // key and the others under their sync key.
     String local(String syncKey) => _localKeys[syncKey] ?? syncKey;
+    // Apps in the bar stay out of the grid, also where another phone that
+    // has not synced the bar yet still shows them in a cell.
+    final inBar = _settings.quickBar ? {for (final k in _bar) _syncKeyOf(k)} : const <String>{};
     final shared = _remote.isEmpty
         ? const <Cell, String>{}
-        : {for (final e in sharedCells(_remote, _rows).entries) e.key: local(e.value)};
+        : {
+            for (final e in sharedCells(_remote, _rows).entries)
+              if (!inBar.contains(e.value)) e.key: local(e.value),
+          };
     final ghostsBefore = _ghosts;
     if (_settings.autoArrange) {
       _arrange(shared, now: now || _arrangeNow);
@@ -554,7 +608,7 @@ class LauncherController extends ChangeNotifier {
       cols: _cols,
       installed: {for (final a in _apps) a.key},
       counts: totals,
-      excluded: {..._excluded, ..._hidden},
+      excluded: _offGrid,
       shared: shared,
       lent: {for (final e in _lent.entries) e.key: local(e.value)},
     );
@@ -574,7 +628,7 @@ class LauncherController extends ChangeNotifier {
   /// the arrangement for later.
   void _arrange(Map<Cell, String> shared, {required bool now}) {
     final installed = {for (final a in _apps) a.key};
-    final excluded = {..._excluded, ..._hidden};
+    final excluded = _offGrid;
     bool inGrid(Cell c) => c.row < _rows && c.col < _cols;
     Map<Cell, String> slots;
     if (_inFront && !now && _slots.isNotEmpty) {
@@ -717,9 +771,56 @@ class LauncherController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Puts [app] into the quick launch bar at [at] (the end by default),
+  /// shifting the apps from there on to the right, and takes it off the
+  /// grid. False when the bar is full.
+  bool addToQuickBar(AppEntry app, {int? at}) {
+    if (isInQuickBar(app)) return true;
+    if (quickBarFull) return false;
+    final bar = [..._bar];
+    bar.insert((at ?? bar.length).clamp(0, bar.length), app.key);
+    _setBar(bar);
+    _slots = {
+      for (final e in _slots.entries)
+        if (e.value != app.key) e.key: e.value,
+    };
+    store.setSlots(_slots);
+    _place();
+    notifyListeners();
+    return true;
+  }
+
+  /// Takes the bar entry [key] out of the bar; its app goes back to the grid
+  /// (when the home screen is next left, arranged by launches).
+  void removeFromQuickBar(String key) {
+    if (!_bar.contains(key)) return;
+    _setBar([..._bar.where((k) => k != key)]);
+    _place();
+    notifyListeners();
+  }
+
+  /// Moves the bar entry [key] to position [to].
+  void moveInQuickBar(String key, int to) {
+    final from = _bar.indexOf(key);
+    if (from < 0) return;
+    final bar = [..._bar]..removeAt(from);
+    bar.insert(to.clamp(0, bar.length), key);
+    if (listEquals(bar, _bar)) return;
+    _setBar(bar);
+    notifyListeners();
+  }
+
+  void _setBar(List<String> bar, {DateTime? changed}) {
+    _bar = List.unmodifiable(bar);
+    _barChanged = changed ?? _clock();
+    store.setQuickBar(_bar);
+    store.setQuickBarChanged(_barChanged!);
+  }
+
   void setHidden(AppEntry app, bool hide) {
     hide ? _hidden.add(app.key) : _hidden.remove(app.key);
     store.setHidden(_hidden);
+    if (hide && isInQuickBar(app)) _setBar([..._bar.where((k) => _barLocal(k) != app.key)]);
     if (hide) {
       _slots = {
         for (final e in _slots.entries)
@@ -862,7 +963,11 @@ class LauncherController extends ChangeNotifier {
       labels: {
         for (final e in _slots.entries)
           if (e.key.row < rows && labels[e.value] != null) _syncKeyOf(e.value): labels[e.value]!,
+        for (final k in _bar)
+          if (labels[_barLocal(k)] != null) _syncKeyOf(k): labels[_barLocal(k)]!,
       },
+      bar: _barChanged == null ? null : [for (final k in _bar) _syncKeyOf(k)],
+      barChanged: _barChanged,
     );
     final own = '$syncPrefix$device.json';
     final before = mine();
@@ -890,11 +995,16 @@ class LauncherController extends ChangeNotifier {
     final adopted =
         remote.isNotEmpty && !store.metOtherPhones && !_settings.autoArrange && _adoptBusiestGrid(before, rows);
     if (remote.isNotEmpty) await store.setMetOtherPhones(true);
+    // A bar changed on another phone after this one's replaces it.
+    final bar = newerBar(remote, _barChanged);
+    if (bar != null) _setBar([for (final k in bar.bar!) _localKeys[k] ?? k], changed: bar.barChanged);
     _place();
     notifyListeners();
     // The others should see the grid this phone took over or arranged at once.
     final after = mine();
-    if (adopted || !mapEquals(after.cells, before.cells)) await client.putObject(own, utf8.encode(after.encode()));
+    if (adopted || bar != null || !mapEquals(after.cells, before.cells)) {
+      await client.putObject(own, utf8.encode(after.encode()));
+    }
   }
 
   /// On the first sync that finds other phones: when one of them has more
@@ -904,7 +1014,7 @@ class LauncherController extends ChangeNotifier {
   bool _adoptBusiestGrid(DeviceSync mine, int rows) {
     final busiest = ([..._remote, mine]..sort(byLaunches)).first;
     if (identical(busiest, mine)) return false;
-    final hidden = {..._excluded, ..._hidden};
+    final hidden = _offGrid;
     final slots = <Cell, String>{};
     for (final e in busiest.cells.entries) {
       if (e.key.row >= rows) continue;
@@ -948,6 +1058,8 @@ class LauncherController extends ChangeNotifier {
   void updateSettings(LauncherSettings s) {
     // Turned on in settings, the arrangement shows on the way back home.
     if (s.autoArrange && !_settings.autoArrange) _arrangeNow = true;
+    // The bar's apps leave or rejoin the grid, which also changes its size.
+    if (s.quickBar != _settings.quickBar && s.autoArrange) _arrangeNow = true;
     if (s.autoArrange != _settings.autoArrange) _forgetLayouts();
     // Another window ranks the apps anew, shown on the way back home.
     final window = s.launchWindowDays != _settings.launchWindowDays;

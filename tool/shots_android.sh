@@ -4,9 +4,9 @@
 # app and has its accessibility service on (tool/e2e_android.sh leaves it so,
 # and calls this at its end). The emulator's own apps only, so no personal
 # data. Launches a few apps through the search box to fill the home grid,
-# then captures, at a phone-like 720x1600, into build/shots-android/:
+# puts two of them into the quick bar, then captures, at a phone-like 720x1600, into build/shots-android/:
 #
-#   home.png search.png menu.png settings.png stats.png search.mp4
+#   home.png search.png menu.png settings.png stats.png search.mp4 quickbar.mp4
 #
 # With SHOTS_TO_LOG=1 every file is also printed base64-encoded, in long
 # lines between "=== SHOT name" and "=== END", so the files can be taken
@@ -84,6 +84,19 @@ for q in clk:4 cam:3 chrm:3 cntcts:2 fls:2 msgs:2 phn:1 clndr:1 gall:1 mps:1 ytb
 done
 in_front || home
 sleep 2
+# Two apps in the quick bar, through the long-press menu.
+for q in Camera Phone; do
+  dump
+  xy=$(centre "$q")
+  [ -n "$xy" ] || continue
+  adb shell input swipe $xy $xy 900
+  sleep 2
+  tap_on "Add to quick bar" || adb shell input keyevent KEYCODE_BACK
+  sleep 2
+done
+home
+in_front || home
+sleep 2
 shot home
 
 # Search: matched letters highlighted, app shortcuts among the results.
@@ -95,7 +108,7 @@ home
 
 # The long-press menu of a home cell.
 dump
-xy=$(centre "Camera")
+xy=$(centre "Clock")
 if [ -n "$xy" ]; then
   adb shell input swipe $xy $xy 900
   sleep 2
@@ -125,6 +138,31 @@ adb shell input keyevent KEYCODE_HOME
 wait $rec || true
 sleep 1
 adb pull /sdcard/search.mp4 "$out/search.mp4" >/dev/null && echo "recorded search.mp4"
+
+# A second recording: Clock, long-pressed on the grid, dragged into the
+# quick bar after Camera and Phone, then launched from there.
+home
+dump
+read -r cx cy <<<"$(centre Clock)"
+bar=$(grep -o 'resource-id="quick-bar"[^>]*bounds="[^"]*"' "$out/ui.xml" | grep -o 'bounds="[^"]*"' | grep -o '[0-9]\+' | tr '\n' ' ')
+read -r bx1 by1 bx2 by2 <<<"$bar"
+if [ -n "${cx:-}" ] && [ -n "${bx1:-}" ]; then
+  tx=$((bx1 + (bx2 - bx1) * 5 / 10)) ty=$(((by1 + by2) / 2))
+  adb shell rm -f /sdcard/quickbar.mp4
+  adb shell screenrecord --time-limit 10 --bit-rate 2000000 /sdcard/quickbar.mp4 &
+  rec=$!
+  sleep 1.5
+  cmd="input motionevent DOWN $cx $cy; sleep 1"
+  for i in $(seq 1 20); do cmd="$cmd; input motionevent MOVE $((cx + (tx - cx) * i / 20)) $((cy + (ty - cy) * i / 20)); sleep 0.03"; done
+  adb shell "$cmd; sleep 0.4; input motionevent UP $tx $ty"
+  sleep 2
+  tap_on Clock || true
+  sleep 3
+  adb shell input keyevent KEYCODE_HOME
+  wait $rec || true
+  sleep 1
+  adb pull /sdcard/quickbar.mp4 "$out/quickbar.mp4" >/dev/null && echo "recorded quickbar.mp4"
+fi
 
 demo exit
 adb shell wm size reset

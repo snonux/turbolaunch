@@ -11,6 +11,9 @@
 /// placed icon never moves again. A cell the others keep for an app this
 /// phone lacks shows a ghost of that app, named from the [DeviceSync.labels].
 ///
+/// The quick launch bar travels in the same files: each phone sends its bar
+/// with the time it last changed, and the newest change wins ([newerBar]).
+///
 /// Apps are named across phones by their sync key, the app key without the
 /// user serial (serials differ between phones): `package/activity` for the
 /// phone's own profile, `package/activity#work` for another profile, and
@@ -130,6 +133,8 @@ class DeviceSync {
     this.windowDays,
     this.cells = const {},
     this.labels = const {},
+    this.bar,
+    this.barChanged,
   });
 
   final String device;
@@ -157,8 +162,14 @@ class DeviceSync {
   final Map<Cell, String> cells;
 
   /// The names of the apps in [cells], by sync key, for the ghosts on phones
-  /// that lack them. Files from before ghosts have none.
+  /// that lack them, and of the apps in [bar]. Files from before ghosts have none.
   final Map<String, String> labels;
+
+  /// The phone's quick launch bar, left to right, by sync key, and when it
+  /// was last changed; the newest change wins on every phone. Null in files
+  /// from before the bar, and while the bar was never changed.
+  final List<String>? bar;
+  final DateTime? barChanged;
 
   String get label => name.trim().isEmpty ? device : name.trim();
 
@@ -173,6 +184,8 @@ class DeviceSync {
     'windowDays': ?windowDays,
     'cells': {for (final e in cells.entries) e.key.toString(): e.value},
     'labels': labels,
+    'bar': ?bar,
+    'barChanged': ?barChanged?.toUtc().toIso8601String(),
   };
 
   String encode() => jsonEncode(toJson());
@@ -186,6 +199,8 @@ class DeviceSync {
     if (device is! String || device.isEmpty) return null;
     final counts = j['counts'], cells = j['cells'], labels = j['labels'];
     final updatedAt = j['updatedAt'], windowDays = j['windowDays'];
+    final bar = j['bar'], barChanged = j['barChanged'];
+    final changed = barChanged is String ? DateTime.tryParse(barChanged) : null;
     return DeviceSync(
       device: device,
       name: j['name'] is String ? j['name'] as String : '',
@@ -209,6 +224,13 @@ class DeviceSync {
             if (e.key is String && e.value is String && (e.value as String).trim().isNotEmpty)
               e.key as String: e.value as String,
       },
+      bar: changed != null && bar is List
+          ? [
+              for (final k in bar)
+                if (k is String && k.isNotEmpty) k,
+            ]
+          : null,
+      barChanged: bar is List ? changed : null,
     );
   }
 
@@ -252,6 +274,19 @@ String? windowWarning(List<DeviceSync> others) {
   ].join(', ');
   return 'Your phones count launches over different windows: $which. '
       'Set the same window on every phone, or the summed counts mix them.';
+}
+
+/// The newest quick launch bar of [remote], if one was changed after
+/// [since] (null: this phone never changed its bar).
+DeviceSync? newerBar(Iterable<DeviceSync> remote, DateTime? since) {
+  DeviceSync? newest;
+  for (final d in remote) {
+    final at = d.barChanged;
+    if (at == null || d.bar == null) continue;
+    if (since != null && !at.isAfter(since)) continue;
+    if (newest == null || at.isAfter(newest.barChanged!)) newest = d;
+  }
+  return newest;
 }
 
 /// How many launches [d] has made, which decides whose grid wins.

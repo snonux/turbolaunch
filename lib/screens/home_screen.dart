@@ -15,8 +15,9 @@ import 'stats_screen.dart';
 import 'sync_screen.dart';
 
 /// The home screen: the clock line at the top, the home grid filled by
-/// launch count, and the search box docked at the bottom within thumb reach.
-/// Focusing the search swaps the grid for live fuzzy results.
+/// launch count, the quick launch bar with the apps put there by hand, and
+/// the search box docked at the bottom within thumb reach. Focusing the
+/// search swaps the grid and the bar for live fuzzy results.
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, required this.controller, required this.icons});
 
@@ -103,6 +104,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _focus.unfocus();
     final onHome = _c.isOnHome(app);
     final hidden = _c.isHidden(app);
+    final bar = _c.settings.quickBar;
+    final inBar = bar && _c.isInQuickBar(app);
     final action = await showModalBottomSheet<String>(
       context: context,
       builder: (context) {
@@ -117,7 +120,13 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(title: Text(app.label, style: Theme.of(context).textTheme.titleMedium)),
-              if (onHome)
+              if (inBar)
+                item('bar-remove', Icons.remove_circle_outline, 'Remove from quick bar')
+              else if (bar && !hidden && !_c.quickBarFull)
+                item('bar-add', Icons.bolt_outlined, 'Add to quick bar'),
+              if (inBar)
+                const SizedBox.shrink()
+              else if (onHome)
                 item('unpin', Icons.remove_circle_outline, 'Remove from home')
               else if (!hidden)
                 item('pin', Icons.push_pin_outlined, 'Add to home'),
@@ -141,6 +150,10 @@ class _HomeScreenState extends State<HomeScreen> {
         _c.removeFromHome(app);
       case 'pin':
         _c.pinToHome(app);
+      case 'bar-add':
+        _c.addToQuickBar(app);
+      case 'bar-remove':
+        _c.removeFromQuickBar(_c.quickBar.firstWhere((i) => i.app?.key == app.key).key);
       case 'hide':
         _c.setHidden(app, true);
       case 'unhide':
@@ -152,6 +165,28 @@ class _HomeScreenState extends State<HomeScreen> {
       case 'delete-pair':
         _c.removePair(app.pair!);
     }
+  }
+
+  /// Long-press on a ghost in the quick bar: it can only be taken out.
+  Future<void> _showGhostMenu(QuickBarItem item) async {
+    final remove = await showModalBottomSheet<bool>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(title: Text(item.label, style: Theme.of(context).textTheme.titleMedium)),
+            ListTile(
+              key: const Key('menu-bar-remove'),
+              leading: const Icon(Icons.remove_circle_outline),
+              title: const Text('Remove from quick bar'),
+              onTap: () => Navigator.pop(context, true),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (remove == true) _c.removeFromQuickBar(item.key);
   }
 
   /// Double-tap on empty home space: lock the phone.
@@ -295,12 +330,26 @@ class _HomeScreenState extends State<HomeScreen> {
                                 onLongPress: _c.toggleQuickHide,
                                 onDoubleTap: lockOnDoubleTap,
                               )
-                            : _HomeGrid(
-                                keyboardOpen: keyboardOpen,
-                                controller: _c,
-                                icons: widget.icons,
-                                onLongPress: _showMenu,
-                                onDoubleTap: lockOnDoubleTap,
+                            : Column(
+                                children: [
+                                  Expanded(
+                                    child: _HomeGrid(
+                                      keyboardOpen: keyboardOpen,
+                                      controller: _c,
+                                      icons: widget.icons,
+                                      onLongPress: _showMenu,
+                                      onDoubleTap: lockOnDoubleTap,
+                                    ),
+                                  ),
+                                  if (_c.settings.quickBar)
+                                    _QuickBar(
+                                      controller: _c,
+                                      icons: widget.icons,
+                                      onLongPress: _showMenu,
+                                      onGhostLongPress: _showGhostMenu,
+                                      onDoubleTap: lockOnDoubleTap,
+                                    ),
+                                ],
                               ),
                       ),
               ),
@@ -589,42 +638,49 @@ class _HomeGrid extends StatelessWidget {
             : controller.gridSizeFor(auto.rows, auto.cols);
         if (rows == 0 || cols == 0) return const SizedBox.shrink();
         final grid = controller.grid, ghosts = controller.ghosts, borrowed = controller.borrowed;
-        return Column(
-          key: const Key('home-grid'),
-          children: [
-            for (var r = 0; r < rows; r++)
-              Expanded(
-                child: Row(
-                  children: [
-                    for (var c = 0; c < cols; c++)
-                      Expanded(
-                        child: grid[Cell(r, c)] == null && ghosts[Cell(r, c)] != null
-                            ? _GhostCell(
-                                key: ValueKey('ghost-$r-$c'),
-                                label: ghosts[Cell(r, c)]!,
-                                labelScale: controller.settings.labelScale,
-                              )
-                            : grid[Cell(r, c)] == null
-                            ? GestureDetector(
-                                key: ValueKey('empty-$r-$c'),
-                                behavior: HitTestBehavior.opaque,
-                                excludeFromSemantics: true,
-                                onDoubleTap: onDoubleTap,
-                                child: const SizedBox.expand(),
-                              )
-                            : _GridCell(
-                                app: grid[Cell(r, c)]!,
-                                icons: icons,
-                                labelScale: controller.settings.labelScale,
-                                borrowed: borrowed.contains(Cell(r, c)),
-                                onTap: () => controller.launch(grid[Cell(r, c)]!),
-                                onLongPress: () => onLongPress(grid[Cell(r, c)]!),
-                              ),
-                      ),
-                  ],
+        final bar = controller.settings.quickBar;
+        // An app dragged out of the quick bar and dropped on the grid leaves the bar.
+        return DragTarget<_Dragged>(
+          onWillAcceptWithDetails: (d) => d.data.fromBar,
+          onAcceptWithDetails: (d) => controller.removeFromQuickBar(d.data.key),
+          builder: (context, _, _) => Column(
+            key: const Key('home-grid'),
+            children: [
+              for (var r = 0; r < rows; r++)
+                Expanded(
+                  child: Row(
+                    children: [
+                      for (var c = 0; c < cols; c++)
+                        Expanded(
+                          child: grid[Cell(r, c)] == null && ghosts[Cell(r, c)] != null
+                              ? _GhostCell(
+                                  key: ValueKey('ghost-$r-$c'),
+                                  label: ghosts[Cell(r, c)]!,
+                                  labelScale: controller.settings.labelScale,
+                                )
+                              : grid[Cell(r, c)] == null
+                              ? GestureDetector(
+                                  key: ValueKey('empty-$r-$c'),
+                                  behavior: HitTestBehavior.opaque,
+                                  excludeFromSemantics: true,
+                                  onDoubleTap: onDoubleTap,
+                                  child: const SizedBox.expand(),
+                                )
+                              : _GridCell(
+                                  app: grid[Cell(r, c)]!,
+                                  icons: icons,
+                                  labelScale: controller.settings.labelScale,
+                                  borrowed: borrowed.contains(Cell(r, c)),
+                                  draggable: bar,
+                                  onTap: () => controller.launch(grid[Cell(r, c)]!),
+                                  onLongPress: () => onLongPress(grid[Cell(r, c)]!),
+                                ),
+                        ),
+                    ],
+                  ),
                 ),
-              ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -637,8 +693,9 @@ class _GridCell extends StatelessWidget {
     required this.icons,
     required this.labelScale,
     required this.onTap,
-    required this.onLongPress,
+    this.onLongPress,
     this.borrowed = false,
+    this.draggable = false,
   });
 
   final AppEntry app;
@@ -647,19 +704,23 @@ class _GridCell extends StatelessWidget {
 
   /// In a ghost's cell, lent because the grid was full: drawn a little grey.
   final bool borrowed;
+
+  /// A long-press lifts the app, to drop it into the quick bar; let go
+  /// without moving, it opens the menu as before.
+  final bool draggable;
   final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
     // Each cell is its own accessibility node, whatever wraps the grid.
-    return Semantics(
+    final cell = Semantics(
       container: true,
       child: InkWell(
         key: ValueKey('cell-${app.key}'),
         borderRadius: BorderRadius.circular(16),
         onTap: onTap,
-        onLongPress: onLongPress,
+        onLongPress: draggable ? null : onLongPress,
         // Scales down rather than overflowing while the keyboard squeezes the grid.
         child: LayoutBuilder(
           builder: (context, box) => Opacity(
@@ -703,6 +764,196 @@ class _GridCell extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+    if (!draggable) return cell;
+    return _Liftable(
+      data: _Dragged(app.key, fromBar: false, app: app),
+      feedback: AppIcon(app: app, cache: icons, size: 56),
+      onMenu: onLongPress ?? () {},
+      child: cell,
+    );
+  }
+}
+
+/// What is being dragged: an app from the grid, or an entry of the quick bar.
+class _Dragged {
+  const _Dragged(this.key, {required this.fromBar, this.app});
+
+  final String key;
+  final bool fromBar;
+  final AppEntry? app;
+}
+
+/// Lifts [child] on a long-press, to drag it somewhere; let go without
+/// moving, it opens the menu ([onMenu]) instead, as a plain long-press would.
+class _Liftable extends StatefulWidget {
+  const _Liftable({required this.data, required this.feedback, required this.onMenu, required this.child});
+
+  final _Dragged data;
+  final Widget feedback;
+  final VoidCallback onMenu;
+  final Widget child;
+
+  @override
+  State<_Liftable> createState() => _LiftableState();
+}
+
+class _LiftableState extends State<_Liftable> {
+  /// How far the finger moved since the app was lifted.
+  double _moved = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return LongPressDraggable<_Dragged>(
+      data: widget.data,
+      hapticFeedbackOnStart: true,
+      // The icon sits under the finger, a little above it so it shows.
+      dragAnchorStrategy: (_, _, _) => const Offset(28, 56),
+      feedback: Material(type: MaterialType.transparency, child: widget.feedback),
+      childWhenDragging: Opacity(opacity: 0.3, child: widget.child),
+      onDragStarted: () => _moved = 0,
+      onDragUpdate: (d) => _moved += d.delta.distance,
+      onDraggableCanceled: (_, _) {
+        if (_moved < 16) widget.onMenu();
+      },
+      child: widget.child,
+    );
+  }
+}
+
+/// The quick launch bar under the grid: apps put there by hand, left to
+/// right, one slot per grid column. A tinted, outlined panel, so it reads as
+/// a dock and not as one more grid row. Apps are dragged in from the grid
+/// (or added from the long-press menu), dragged along it to reorder, and
+/// dragged out onto the grid to take them out. Empty, it says so.
+class _QuickBar extends StatelessWidget {
+  const _QuickBar({
+    required this.controller,
+    required this.icons,
+    required this.onLongPress,
+    required this.onGhostLongPress,
+    this.onDoubleTap,
+  });
+
+  final LauncherController controller;
+  final IconCache icons;
+  final void Function(AppEntry) onLongPress;
+  final void Function(QuickBarItem) onGhostLongPress;
+
+  /// For empty slots only.
+  final VoidCallback? onDoubleTap;
+
+  /// The bar's height at label scale 1.
+  static const height = 84.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final scale = controller.settings.labelScale;
+    final items = controller.quickBar;
+    final slots = controller.quickBarSlots;
+    final full = controller.quickBarFull;
+
+    Widget target(int i, Widget Function(bool hovered) child) => DragTarget<_Dragged>(
+      onWillAcceptWithDetails: (d) =>
+          d.data.fromBar ? (i >= items.length || items[i].key != d.data.key) : (!full && d.data.app != null),
+      onAcceptWithDetails: (d) =>
+          d.data.fromBar ? controller.moveInQuickBar(d.data.key, i) : controller.addToQuickBar(d.data.app!, at: i),
+      builder: (context, candidates, _) => child(candidates.isNotEmpty),
+    );
+
+    Widget slot(bool hovered, Widget child) => AnimatedContainer(
+      duration: const Duration(milliseconds: 120),
+      margin: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: hovered ? scheme.primary.withValues(alpha: 0.35) : Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: child,
+    );
+
+    return Semantics(
+      identifier: 'quick-bar',
+      container: true,
+      child: Container(
+        key: const Key('quick-bar'),
+        height: height + 16 * (scale - 1),
+        margin: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+        decoration: BoxDecoration(
+          color: scheme.primaryContainer.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: scheme.primary.withValues(alpha: 0.7), width: 1.5),
+        ),
+        child: Stack(
+          children: [
+            Row(
+              children: [
+                for (var i = 0; i < slots; i++)
+                  Expanded(
+                    child: target(
+                      i,
+                      (hovered) => slot(
+                        hovered,
+                        i >= items.length
+                            ? GestureDetector(
+                                key: ValueKey('bar-empty-$i'),
+                                behavior: HitTestBehavior.opaque,
+                                excludeFromSemantics: true,
+                                onDoubleTap: onDoubleTap,
+                                child: const SizedBox.expand(),
+                              )
+                            : items[i].app == null
+                            ? _Liftable(
+                                data: _Dragged(items[i].key, fromBar: true),
+                                feedback: const Icon(Icons.help_outline, size: 48, color: Colors.white),
+                                onMenu: () => onGhostLongPress(items[i]),
+                                child: _GhostCell(
+                                  key: ValueKey('bar-ghost-${items[i].key}'),
+                                  label: items[i].label,
+                                  labelScale: scale,
+                                ),
+                              )
+                            : _Liftable(
+                                data: _Dragged(items[i].key, fromBar: true, app: items[i].app),
+                                feedback: AppIcon(app: items[i].app!, cache: icons, size: 56),
+                                onMenu: () => onLongPress(items[i].app!),
+                                child: KeyedSubtree(
+                                  key: ValueKey('bar-${items[i].app!.key}'),
+                                  child: _GridCell(
+                                    app: items[i].app!,
+                                    icons: icons,
+                                    labelScale: scale,
+                                    onTap: () => controller.launch(items[i].app!),
+                                  ),
+                                ),
+                              ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            if (items.isEmpty)
+              IgnorePointer(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Text(
+                      'Drag apps here for quick launch',
+                      key: const Key('quick-bar-hint'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 14 * scale,
+                        color: Colors.white.withValues(alpha: 0.85),
+                        fontStyle: FontStyle.italic,
+                        shadows: const [Shadow(blurRadius: 4, color: Colors.black87)],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );

@@ -475,6 +475,85 @@ void main() {
     expect(b.c.totals[mail.key], 5);
   });
 
+  test('the quick bar syncs: the newest change wins, an app a phone lacks is a ghost there', () async {
+    var now = DateTime.utc(2026, 10, 15, 8);
+    DateTime clock() => now;
+    final mail = app('mail'), camera = app('camera'), notes = app('notes');
+    final a = await phone([mail, camera, notes], counts: {mail.key: 5, camera.key: 2}, clock: clock);
+    final b = await phone([mail, camera], clock: clock);
+    expect(a.grid.values, containsAll(['mail', 'camera']));
+    expect(a.c.addToQuickBar(camera), isTrue);
+    expect(a.c.addToQuickBar(notes, at: 0), isTrue);
+    expect([for (final i in a.c.quickBar) i.label], ['notes', 'camera']);
+    expect(a.grid.values, isNot(contains('camera')), reason: 'a bar app is not also on the grid');
+    await syncAll();
+    // B takes A's bar; it lacks notes, which shows as a ghost with its name.
+    expect([for (final i in b.c.quickBar) (i.label, i.app != null)], [('notes', false), ('camera', true)]);
+    expect(b.c.isInQuickBar(camera), isTrue);
+    expect(b.grid.values, isNot(contains('camera')));
+    expect(b.c.ghosts.values, isNot(contains('camera')), reason: 'no ghost of a bar app on the grid');
+
+    // A later change on B wins on A; an older one never overwrites.
+    now = now.add(const Duration(minutes: 5));
+    b.c.removeFromQuickBar(b.c.quickBar.first.key);
+    b.c.moveInQuickBar(camera.key, 0);
+    await syncAll();
+    expect([for (final i in a.c.quickBar) i.label], ['camera']);
+    expect([for (final i in b.c.quickBar) i.label], ['camera']);
+
+    // Installing the missing app on B turns its ghost into the app.
+    now = now.add(const Duration(minutes: 5));
+    a.c.addToQuickBar(notes);
+    await syncAll();
+    b.source.apps = [mail, camera, notes];
+    await pumpEventQueue();
+    expect([for (final i in b.c.quickBar) (i.label, i.app != null)], [('camera', true), ('notes', true)]);
+    expect(b.grid.values, isNot(contains('notes')));
+  });
+
+  test('a phone that never changed its bar sends none; files from before the bar are ignored', () async {
+    final mail = app('mail');
+    final a = await phone([mail], counts: {mail.key: 1});
+    await a.c.syncNow();
+    final file = DeviceSync.decode(utf8.decode(bucket.objects['$kSyncPrefix${a.store.deviceId}.json']!))!;
+    expect(file.bar, isNull);
+    expect(newerBar([file], null), isNull);
+    final old = DeviceSync.decode('{"format":"turbolaunch-sync","formatVersion":1,"device":"x","bar":["a/b"]}')!;
+    expect(old.bar, isNull, reason: 'a bar without its change time is not taken');
+  });
+
+  test('hiding an app takes it out of the quick bar; with the bar off it is on the grid again', () async {
+    final mail = app('mail'), camera = app('camera');
+    final a = await phone([mail, camera], counts: {mail.key: 5, camera.key: 2});
+    a.c.addToQuickBar(camera);
+    expect(a.grid.values, ['mail']);
+    a.c.updateSettings(a.c.settings.copyWith(quickBar: false));
+    a.c.setAutoGridSize(3, 3);
+    expect(a.grid.values, containsAll(['mail', 'camera']));
+    expect(a.c.isInQuickBar(camera), isTrue, reason: 'the bar keeps its apps while off');
+    a.c.updateSettings(a.c.settings.copyWith(quickBar: true));
+    a.c.setAutoGridSize(3, 3);
+    a.c.setHidden(camera, true);
+    expect(a.c.quickBar, isEmpty);
+  });
+
+  test('the quick bar holds one app per grid column and survives export and import', () async {
+    final apps = [
+      for (final n in ['a', 'b', 'c', 'd']) app(n),
+    ];
+    final p = await phone(apps);
+    for (final x in apps.take(3)) {
+      expect(p.c.addToQuickBar(x), isTrue);
+    }
+    expect(p.c.quickBarFull, isTrue);
+    expect(p.c.addToQuickBar(apps[3]), isFalse);
+    final text = encodeSettingsBackup(LauncherBackup.fromStore(p.store), exportedAt: DateTime(2026));
+    await p.store.setQuickBar(const []);
+    await decodeSettingsBackup(text).applyTo(p.store);
+    expect(p.store.quickBar, [for (final x in apps.take(3)) x.key]);
+    expect(p.store.quickBarChanged, isNotNull);
+  });
+
   test('a device file round-trips and junk is ignored', () {
     final d = DeviceSync(
       device: 'abc',

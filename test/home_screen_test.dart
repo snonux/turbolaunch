@@ -60,7 +60,8 @@ void main() {
     // The last run left an app list and a placed app; this run's list never arrives.
     SharedPreferences.setMockInitialValues({
       'appSnapshot': '[{"key": "org.example.maps/org.example.maps.Main#0", "label": "Maps"}]',
-      'homeSlots': '{"6,0": "org.example.maps/org.example.maps.Main#0"}',
+      // Row 5 is the bottom row above the quick bar.
+      'homeSlots': '{"5,0": "org.example.maps/org.example.maps.Main#0"}',
       'launchCounts': '{"org.example.maps/org.example.maps.Main#0": 3}',
     });
     final store = await LauncherStore.open();
@@ -731,6 +732,115 @@ void main() {
     await tester.pump();
     expect(find.text('Chat is on your other phones, not on this one.'), findsOneWidget);
     expect(source.launched, isEmpty);
+  });
+
+  group('quick bar', () {
+    const mapsKey = 'org.example.maps/org.example.maps.Main#0';
+    const musicKey = 'org.example.music/org.example.music.Main#0';
+    final onGrid = find.byKey(const Key('home-grid'));
+    final bar = find.byKey(const Key('quick-bar'));
+    Finder inGrid(String label) => find.descendant(of: onGrid, matching: find.text(label));
+    Finder inBar(String label) => find.descendant(of: bar, matching: find.text(label));
+
+    /// Long-presses [from] until it lifts, drags it to [to] and lets go.
+    Future<void> drag(WidgetTester tester, Finder from, Offset to) async {
+      final g = await tester.startGesture(tester.getCenter(from));
+      await tester.pump(const Duration(milliseconds: 700));
+      final start = tester.getCenter(from);
+      for (var i = 1; i <= 10; i++) {
+        await g.moveTo(Offset.lerp(start, to, i / 10)!);
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await g.up();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('empty, it keeps its row with a note; settings turn it off and the grid gets its row back', (
+      tester,
+    ) async {
+      await start(tester);
+      expect(bar, findsOneWidget);
+      expect(find.text('Drag apps here for quick launch'), findsOneWidget);
+      final withBar = tester.getSize(onGrid).height;
+      await openSettings(tester);
+      await scrollTo(tester, find.byKey(const Key('quick-bar-enabled')));
+      await tester.tap(find.byKey(const Key('quick-bar-enabled')));
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(bar, findsNothing);
+      expect(tester.getSize(onGrid).height, greaterThan(withBar));
+    });
+
+    testWidgets('an app dragged in leaves the grid, launches from the bar and counts; dragged out it leaves the bar', (
+      tester,
+    ) async {
+      await start(tester, {'launchCounts': '{"$mapsKey": 3, "$musicKey": 1}'});
+      expect(inGrid('Maps'), findsOneWidget);
+      await drag(tester, inGrid('Maps'), tester.getCenter(find.byKey(const ValueKey('bar-empty-0'))));
+      expect(find.text('Drag apps here for quick launch'), findsNothing);
+      expect(inBar('Maps'), findsOneWidget);
+      expect(inGrid('Maps'), findsNothing, reason: 'not shown twice');
+
+      await tester.tap(inBar('Maps'));
+      await tester.pumpAndSettle();
+      expect(source.launched.single.label, 'Maps');
+
+      // Music dropped on the first slot goes before Maps.
+      await drag(tester, inGrid('Music'), tester.getCenter(inBar('Maps')));
+      expect(tester.getCenter(inBar('Music')).dx, lessThan(tester.getCenter(inBar('Maps')).dx));
+      // Along the bar: Music to the third slot, after Maps.
+      await drag(tester, inBar('Music'), tester.getCenter(find.byKey(const ValueKey('bar-empty-2'))));
+      expect(tester.getCenter(inBar('Music')).dx, greaterThan(tester.getCenter(inBar('Maps')).dx));
+
+      await openSettings(tester);
+      await tester.tap(find.byKey(const Key('open-stats')));
+      await tester.pumpAndSettle();
+      expect(find.text('5 launches on this phone'), findsOneWidget);
+      expect(find.text('In the quick bar'), findsNWidgets(2));
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      // Out onto the grid: it leaves the bar.
+      await drag(tester, inBar('Maps'), tester.getCenter(onGrid));
+      expect(inBar('Maps'), findsNothing);
+      expect(inBar('Music'), findsOneWidget);
+    });
+
+    testWidgets('the long-press menu adds to and removes from the bar; a plain long-press still opens it', (
+      tester,
+    ) async {
+      await start(tester);
+      await openSearch(tester);
+      await tester.longPress(find.text('Calendar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('menu-bar-add')));
+      await tester.pumpAndSettle();
+      expect(inBar('Calendar'), findsOneWidget);
+
+      await tester.longPress(inBar('Calendar'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('menu-pin')), findsNothing, reason: 'a bar app has no home entries');
+      await tester.tap(find.byKey(const Key('menu-bar-remove')));
+      await tester.pumpAndSettle();
+      expect(find.text('Drag apps here for quick launch'), findsOneWidget);
+    });
+
+    testWidgets('a bar app another phone put there shows as a ghost', (tester) async {
+      await start(tester, {
+        'quickBar': ['org.example.chat/org.example.chat.Main'],
+        'quickBarChanged': '2026-10-15T08:00:00Z',
+        'syncRemote':
+            '[{"format": "turbolaunch-sync", "formatVersion": 1, "device": "other", '
+            '"labels": {"org.example.chat/org.example.chat.Main": "Chat"}}]',
+      });
+      expect(inBar('Chat'), findsOneWidget);
+      await tester.tap(inBar('Chat'));
+      await tester.pump();
+      expect(find.text('Chat is on your other phones, not on this one.'), findsOneWidget);
+    });
   });
 
   testWidgets('each grid cell is its own accessibility node', (tester) async {

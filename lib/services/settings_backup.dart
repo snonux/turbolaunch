@@ -9,7 +9,7 @@ import 'sync.dart';
 /// Settings export and import, adapted from Quicklog's settings_backup.dart:
 /// one versioned, readable JSON file the user saves and opens through the
 /// system file dialogs. It carries the settings, hidden apps, apps removed
-/// from home, app pairs, launch counts (per day, and summed over the launch
+/// from home, the quick launch bar, app pairs, launch counts (per day, and summed over the launch
 /// window for older versions), home cells and the sync settings
 /// (with the S3 keys, in plain text like Quicklog's), so a new phone starts
 /// with the same grid. The phone's sync id is never in it.
@@ -40,6 +40,7 @@ class LauncherBackup {
     this.settings,
     this.hidden,
     this.removedFromHome,
+    this.quickBar,
     this.pairs,
     this.launchCounts,
     this.launchDays,
@@ -51,6 +52,9 @@ class LauncherBackup {
   final LauncherSettings? settings;
   final Set<String>? hidden;
   final Set<String>? removedFromHome;
+
+  /// The quick launch bar, left to right.
+  final List<String>? quickBar;
   final List<AppPair>? pairs;
 
   /// Launches within the window; all an export from before the window has.
@@ -73,6 +77,7 @@ class LauncherBackup {
       settings: store.settings,
       hidden: store.hidden,
       removedFromHome: store.excluded,
+      quickBar: store.quickBar,
       pairs: store.pairs,
       launchCounts: days == null
           ? store.legacyCounts
@@ -93,6 +98,11 @@ class LauncherBackup {
     if (settings != null) await store.setSettings(settings!);
     if (hidden != null) await store.setHidden(hidden!);
     if (removedFromHome != null) await store.setExcluded(removedFromHome!);
+    // An imported bar is a change like any other: with sync, the others take it.
+    if (quickBar != null) {
+      await store.setQuickBar(quickBar!);
+      await store.setQuickBarChanged(now ?? DateTime.now());
+    }
     if (pairs != null) await store.setPairs(pairs!);
     if (!syncOn) {
       if (launchDays != null) {
@@ -124,6 +134,7 @@ String encodeSettingsBackup(LauncherBackup b, {required DateTime exportedAt}) {
     'settings': ?b.settings?.toJson(),
     'hiddenApps': ?(b.hidden?.toList()?..sort()),
     'removedFromHome': ?(b.removedFromHome?.toList()?..sort()),
+    'quickBar': ?b.quickBar,
     'appPairs': ?b.pairs?.map((p) => p.toJson()).toList(),
     'launchCounts': ?b.launchCounts,
     'launchDays': ?b.launchDays,
@@ -167,6 +178,7 @@ LauncherBackup decodeSettingsBackup(String text) {
     settings: _opt(doc, 'settings', (v) => v is Map ? LauncherSettings.fromJson(Map<String, Object?>.from(v)) : null),
     hidden: _opt(doc, 'hiddenApps', _stringSet),
     removedFromHome: _opt(doc, 'removedFromHome', _stringSet),
+    quickBar: _opt(doc, 'quickBar', (v) => v is List && v.every((e) => e is String) ? v.cast<String>().toList() : null),
     pairs: _opt(doc, 'appPairs', (v) {
       if (v is! List) return null;
       final pairs = v.map(AppPair.fromJson).toList();

@@ -4,6 +4,8 @@
 # search box lists the device's apps, that a fuzzy search and Enter launch the
 # top match, that Home returns with the search cleared and the launched app on
 # the home grid and keeps its cells through a turn to landscape and back,
+# that an app dragged into the quick bar leaves the grid and launches from
+# there, and that settings turn the bar off,
 # that the long-press menu and quick hide work, that cold start
 # and home-ready times are logged (again after a restart), that a swipe down opens the
 # notification shade, a swipe up the search (and over its results closes it, as does leaving for an app and coming back), and a gesture recorded in settings
@@ -103,6 +105,36 @@ sys.exit(1)
 PY
 }
 
+# Exit 0 if a node with text or content-desc $1 sits inside the quick bar.
+in_bar() {
+  python3 - "$out/ui.xml" "$1" <<'PY'
+import re, sys
+xml, want = open(sys.argv[1]).read(), sys.argv[2]
+bar = re.search(r'resource-id="quick-bar"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', xml)
+if not bar:
+    sys.exit(2)
+x1, y1, x2, y2 = map(int, bar.groups())
+for node in re.findall(r'<node [^>]*>', xml):
+    attrs = dict(re.findall(r'([\w-]+)="([^"]*)"', node))
+    if not any(want in attrs.get(k, '') for k in ('text', 'content-desc')):
+        continue
+    bx1, by1, bx2, by2 = map(int, re.findall(r'\d+', attrs['bounds']))
+    if x1 <= (bx1 + bx2) // 2 <= x2 and y1 <= (by1 + by2) // 2 <= y2:
+        sys.exit(0)
+sys.exit(1)
+PY
+}
+# Bounds of the node with resource-id $1, as "x1 y1 x2 y2".
+bounds_of() {
+  grep -o "resource-id=\"$1\"[^>]*bounds=\"[^\"]*\"" "$out/ui.xml" | head -1 | grep -o 'bounds="[^"]*"' | grep -o '[0-9]\+' | tr '\n' ' '
+}
+# Long-presses x1 y1 until the app lifts, drags it to x2 y2 and lets go.
+drag_app() {
+  local cmd="input motionevent DOWN $1 $2; sleep 1" i
+  for i in $(seq 1 10); do cmd="$cmd; input motionevent MOVE $(($1 + ($3 - $1) * i / 10)) $(($2 + ($4 - $2) * i / 10))"; done
+  adb shell "$cmd; sleep 0.3; input motionevent UP $3 $4"
+}
+
 adb wait-for-device
 adb shell 'while [ "$(getprop sys.boot_completed)" != 1 ]; do sleep 2; done'
 adb shell settings put global window_animation_scale 0
@@ -120,11 +152,14 @@ adb shell input keyevent KEYCODE_HOME
 sleep 8
 read -r w h < <(adb shell wm size | grep -o '[0-9]*x[0-9]*' | tail -1 | tr x ' ')
 
-# 1. TurboLaunch is the home screen: clock line, search box, empty grid.
+# 1. TurboLaunch is the home screen: clock line, search box, empty grid,
+#    and the empty quick bar with its note.
 dump; shot home
 expect_focus "home screen is TurboLaunch" "$app"
 expect_ui "search box shown" 'resource-id="search"'
 expect_ui "clock line shown" 'resource-id="clock-line"'
+expect_ui "quick bar shown" 'resource-id="quick-bar"'
+expect_ui "empty quick bar says to drag apps in" 'Drag apps here for quick launch'
 # Battery is off by default (Android already shows it); no percent under the clock node.
 ec=0; clock_battery_present || ec=$?; case $ec in
   0) fail "clock line hides the battery by default" ;;
@@ -209,6 +244,57 @@ else
   fail "rotating back keeps the cells (Clock $(centre "Clock"), Settings $(centre "Settings"); before $cx,$cy $sx,$sy)"
 fi
 
+# 5d. Quick bar: Clock, long-pressed and dragged onto the bar, leaves the
+#     grid for the bar and the note goes; a tap there launches it (and
+#     counts); dragged back onto the grid it leaves the bar. Settings turn
+#     the bar off and on again.
+dump
+read -r cx cy <<<"$(centre "Clock")"
+read -r bx1 by1 bx2 by2 <<<"$(bounds_of quick-bar)"
+if [ -n "${cx:-}" ] && [ -n "${bx1:-}" ]; then
+  drag_app "$cx" "$cy" $((bx1 + 40)) $(((by1 + by2) / 2))
+  sleep 2; dump; shot quick_bar
+  if in_bar Clock; then pass "Clock dragged into the quick bar"; else fail "Clock dragged into the quick bar"; fi
+  if [ "$(grep -o 'text="Clock"\|content-desc="Clock"' "$out/ui.xml" | wc -l)" -le 1 ]; then
+    pass "Clock not on the grid as well"
+  else
+    fail "Clock not on the grid as well"
+  fi
+  if grep -q 'Drag apps here' "$out/ui.xml"; then fail "quick bar note gone"; else pass "quick bar note gone"; fi
+  tap_on "Clock" && sleep 4
+  expect_focus "quick bar launched Clock" "deskclock"
+  adb shell input keyevent KEYCODE_HOME
+  sleep 3; dump
+else
+  fail "find Clock and the quick bar"
+fi
+tap_on "TurboLaunch settings" && sleep 3
+tap_on "Launch stats" && sleep 2
+dump; shot stats_quick_bar
+expect_ui "stats count the quick bar launch" '6 launches on this phone'
+expect_ui "stats show Clock in the quick bar" 'In the quick bar'
+adb shell input keyevent KEYCODE_BACK; sleep 2
+scroll_to 'Quick launch bar' down || true
+tap_on "Quick launch bar" && sleep 1
+adb shell input keyevent KEYCODE_BACK
+sleep 3; dump; shot quick_bar_off
+if grep -q 'resource-id="quick-bar"' "$out/ui.xml"; then fail "settings turn the quick bar off"; else pass "settings turn the quick bar off"; fi
+expect_ui "with the bar off Clock is on the grid" 'Clock'
+tap_on "TurboLaunch settings" && sleep 3
+scroll_to 'Quick launch bar' down || true
+tap_on "Quick launch bar" && sleep 1
+adb shell input keyevent KEYCODE_BACK
+sleep 3; dump
+if in_bar Clock; then pass "turned on again, the bar still has Clock"; else fail "turned on again, the bar still has Clock"; fi
+read -r cx cy <<<"$(centre "Clock")"
+if [ -n "${cx:-}" ]; then
+  drag_app "$cx" "$cy" $((w / 2)) $((h * 35 / 100))
+  # Clock takes its cell again once the home screen is left.
+  adb shell input keyevent KEYCODE_HOME
+  sleep 3; dump; shot quick_bar_out
+  expect_ui "dragged out, the quick bar is empty again" 'Drag apps here for quick launch'
+fi
+
 # 6. Long-press menu: remove from home.
 dump
 xy=$(centre "Settings")
@@ -239,10 +325,10 @@ dump; shot settings
 expect_ui "settings open" 'Set as home app'
 expect_ui "cold start shown" 'ms from process start'
 # Launch stats: Settings was launched twice, by Enter and from its cell, and
-# Clock three times.
+# Clock four times, once from the quick bar.
 tap_on "Launch stats" && sleep 2
 dump; shot stats
-expect_ui "stats count the launches" '5 launches on this phone'
+expect_ui "stats count the launches" '6 launches on this phone'
 expect_ui "stats count Settings" 'Settings&#10;Not on home&#10;2'
 expect_ui "stats count the last 30 days" 'Counting launches of the last 30 days'
 adb shell input keyevent KEYCODE_BACK
@@ -261,7 +347,7 @@ tap_on "TurboLaunch settings" && sleep 3
 tap_on "Launch stats" && sleep 2
 dump; shot stats_7_days
 expect_ui "stats count the last 7 days" 'Counting launches of the last 7 days'
-expect_ui "the last 7 days hold today's launches" '5 launches on this phone'
+expect_ui "the last 7 days hold today's launches" '6 launches on this phone'
 adb shell input keyevent KEYCODE_BACK; sleep 2
 scroll_to 'Count launches of' down || true
 tap_on "Count launches of" && sleep 2

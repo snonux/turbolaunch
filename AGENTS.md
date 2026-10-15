@@ -323,11 +323,12 @@ from the cloud container, so to refresh the shots from there, push a
 temporary `export SHOTS_TO_LOG=1` near the top of `tool/e2e_android.sh`: it prints each file base64-encoded
 between `=== SHOT name` and `=== END` lines at the tail of the job log.
 The PNGs go to `docs/guide/images/` and, as `1.png` to `5.png` (home,
-search, menu, settings, stats), to F-Droid's `phoneScreenshots/`. The GIF is made
-from `search.mp4`:
+search, menu, settings, stats), to F-Droid's `phoneScreenshots/`. The GIFs are made
+from `search.mp4` and `quickbar.mp4` (an app dragged into the quick bar):
 
 ```sh
 ffmpeg -ss 2.2 -i search.mp4 -vf "fps=10,scale=360:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" docs/guide/images/search.gif
+ffmpeg -ss 1.2 -t 7.5 -i quickbar.mp4 -vf "fps=10,scale=360:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" docs/guide/images/quickbar.gif
 ```
 
 ## Icons

@@ -127,6 +127,8 @@ a note app. The quick launch bar is the tinted, outlined row between the
 grid and the search box, for exactly those. It starts empty and says
 **Drag apps here for quick launch**; the note goes once an app is in.
 
+![Clock, long-pressed on the grid, dragged into the quick launch bar next to Camera and Phone, then opened with one tap](images/quickbar.gif)
+
 * **Long-press an app on the grid and drag it** onto the bar. It drops into
   the slot you let go on; the bar holds one app per grid column. Apps you
   can only reach through search go in with **Add to quick bar** in their

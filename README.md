@@ -10,8 +10,8 @@ S3 bucket.
 **[Read the guide](docs/guide/README.md)**: installing, then every
 feature with screenshots and a short recording.
 
-| | |
-|---|---|
+| | | |
+|---|---|---|
 | ![Home screen: clock on top, the most-launched apps near the bottom, the quick launch bar with Camera and Phone, the search box below](docs/guide/images/home.png) | ![Typing "clk" and Enter opens Clock](docs/guide/images/search.gif) | ![Clock dragged from the grid into the quick launch bar, then opened from there](docs/guide/images/quickbar.gif) |
 | The home screen | Type, Enter, done | Drag an app into the quick bar |
 

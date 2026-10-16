@@ -101,9 +101,12 @@ long-press still gets the menu). Drop on a bar slot to add or reorder,
 drop a bar app on the grid to take it out; the menu has "Add to quick bar"
 and "Remove from quick bar" too. Hiding an app takes it out of the bar;
 uninstalling leaves a ghost, as with sync. Off, the grid gets its row back
-and the bar keeps its apps. Sync carries `bar` (sync keys) and
-`barChanged`; the newest change on any phone replaces the bar everywhere
-(`newerBar`); a phone that never changed its bar sends none. An entry for
+and the bar keeps its apps. The bar syncs only with "Sync the quick bar"
+on (`SyncConfig.quickBar`, off by default: Paul, 2026-10-16, each phone
+may want its own bar); off, a phone neither sends nor takes one. With it
+on, sync carries `bar` (sync keys) and `barChanged`; the newest change on
+any such phone replaces the bar there (`newerBar`); a phone that never
+changed its bar sends none. An entry for
 an app the phone lacks is kept as its sync key and drawn as a ghost; it
 turns into the app once installed.
 
@@ -229,8 +232,8 @@ is random, made on first use and never exported.
   that opens the Sync screen.
 * With sync on, an import leaves the launch counts out (they would count
   twice). An imported quick bar counts as a change made at the import.
-* The quick bar: each file carries `bar` and `barChanged`; the newest change
-  wins (see "Quick launch bar" above).
+* The quick bar, with its sync on: each file carries `bar` and
+  `barChanged`; the newest change wins (see "Quick launch bar" above).
 
 `test/sync_test.dart` covers this with an in-memory bucket.
 The live tests never depend on an outside server (snonux, 2026-10-10):
@@ -248,7 +251,8 @@ emulator (AVD `phone-b`, made from the first one's system image, port
 (same cells on screen), the other keeps its own and gets the new app in the
 shared cell, both stats screens show the summed counts, a disabled
 Clock leaves a ghost in its cell on phone B and takes it back when enabled,
-and Camera put into A's quick bar shows in B's after both sync.
+and Camera put into A's quick bar stays out of B's until both turn on
+"Sync the quick bar", then shows in B's after both sync.
 
 ### App pairs
 
@@ -361,4 +365,5 @@ From the plan, one PR per phase:
    screenshots and GIFs, fdroiddata merge request.
 5. **S3 sync** (done): Quicklog's S3 client, per-device files, summed
    launch counts and shared cells, ghosts for apps a phone lacks.
-6. **Quick launch bar** (0.3.9): a hand-picked row under the grid, synced.
+6. **Quick launch bar** (0.3.9): a hand-picked row under the grid; its sync
+   is opt-in since 0.3.10.

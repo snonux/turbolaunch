@@ -1,0 +1,1 @@
+The quick launch bar no longer syncs between phones by default, so each phone keeps a bar of its own. To share one bar across your phones, turn on "Sync the quick bar" on the Sync screen of each: the latest change on any of them wins, and an app a phone lacks shows as a ghost.

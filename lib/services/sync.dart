@@ -11,8 +11,9 @@
 /// placed icon never moves again. A cell the others keep for an app this
 /// phone lacks shows a ghost of that app, named from the [DeviceSync.labels].
 ///
-/// The quick launch bar travels in the same files: each phone sends its bar
-/// with the time it last changed, and the newest change wins ([newerBar]).
+/// With [SyncConfig.quickBar] on, the quick launch bar travels in the same
+/// files: each phone sends its bar with the time it last changed, and the
+/// newest change wins ([newerBar]). Off, a phone neither sends nor takes one.
 ///
 /// Apps are named across phones by their sync key, the app key without the
 /// user serial (serials differ between phones): `package/activity` for the
@@ -58,6 +59,7 @@ class SyncConfig {
     this.accessKeyId = '',
     this.secretAccessKey = '',
     this.deviceName = '',
+    this.quickBar = false,
   });
 
   final bool enabled;
@@ -69,6 +71,10 @@ class SyncConfig {
 
   /// Shown in the other phones' stats; the device id when empty.
   final String deviceName;
+
+  /// Whether the quick launch bar syncs too; off by default, so each phone
+  /// keeps a bar of its own (Paul, 2026-10-16).
+  final bool quickBar;
 
   S3Config get s3 => S3Config.fromRaw(
     endpoint: endpoint,
@@ -88,6 +94,7 @@ class SyncConfig {
     String? accessKeyId,
     String? secretAccessKey,
     String? deviceName,
+    bool? quickBar,
   }) => SyncConfig(
     enabled: enabled ?? this.enabled,
     endpoint: endpoint ?? this.endpoint,
@@ -96,6 +103,7 @@ class SyncConfig {
     accessKeyId: accessKeyId ?? this.accessKeyId,
     secretAccessKey: secretAccessKey ?? this.secretAccessKey,
     deviceName: deviceName ?? this.deviceName,
+    quickBar: quickBar ?? this.quickBar,
   );
 
   Map<String, Object> toJson() => {
@@ -106,6 +114,7 @@ class SyncConfig {
     'accessKeyId': accessKeyId,
     'secretAccessKey': secretAccessKey,
     'deviceName': deviceName,
+    'quickBar': quickBar,
   };
 
   factory SyncConfig.fromJson(Map<Object?, Object?> j) {
@@ -118,6 +127,7 @@ class SyncConfig {
       accessKeyId: s('accessKeyId'),
       secretAccessKey: s('secretAccessKey'),
       deviceName: s('deviceName'),
+      quickBar: j['quickBar'] == true,
     );
   }
 }

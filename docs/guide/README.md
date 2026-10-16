@@ -139,9 +139,11 @@ grid and the search box, for exactly those. It starts empty and says
 * Launches from the bar count like any other, in the stats and with sync,
   but an app in the bar never shows on the grid as well; it stays in
   search.
-* With [sync](#sync-between-phones) on, the bar is the same on all your
-  phones: the latest change on any phone wins. An app a phone lacks shows
-  in the bar as a faded ghost.
+* Each phone keeps a bar of its own. To have the same bar on all your
+  phones, turn on **Sync the quick bar** on the
+  [Sync screen](#sync-between-phones) of each of them: the latest change on
+  any of those phones wins. An app a phone lacks shows in the bar as a
+  faded ghost.
 * **Quick launch bar** under **Home grid** in settings turns it off; the
   grid gets its row back, and the bar keeps its apps for when you turn it
   on again.
@@ -315,9 +317,12 @@ when they last synced.
   once and shows what went wrong.
 * When sync is on but has not worked for a week, a red line on the home
   screen asks you to check it; tap it to open the sync settings.
-* The [quick launch bar](#the-quick-launch-bar) travels too: each phone
-  sends its bar with the time it last changed, and the newest change
-  replaces the bar on the others at their next sync.
+* With **Sync the quick bar** on (it is off by default), the
+  [quick launch bar](#the-quick-launch-bar) travels too: each phone sends
+  its bar with the time it last changed, and the newest change replaces the
+  bar on the others with the setting on, at their next sync. As syncs run
+  at most hourly, a change can take a couple of hours to reach another
+  phone; **Sync now** on both phones brings it at once.
 * Files are plain JSON, without encryption of their own: use a bucket only
   you can read.
 

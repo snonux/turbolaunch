@@ -946,6 +946,8 @@ class LauncherController extends ChangeNotifier {
     final device = store.deviceId;
     final rows = _lastRows;
     final labels = {for (final a in _apps) a.key: a.label};
+    // Each phone keeps a bar of its own unless the bar's sync is on.
+    final syncBar = _sync.quickBar;
     DeviceSync mine() => DeviceSync(
       device: device,
       name: _sync.deviceName,
@@ -963,11 +965,12 @@ class LauncherController extends ChangeNotifier {
       labels: {
         for (final e in _slots.entries)
           if (e.key.row < rows && labels[e.value] != null) _syncKeyOf(e.value): labels[e.value]!,
-        for (final k in _bar)
-          if (labels[_barLocal(k)] != null) _syncKeyOf(k): labels[_barLocal(k)]!,
+        if (syncBar)
+          for (final k in _bar)
+            if (labels[_barLocal(k)] != null) _syncKeyOf(k): labels[_barLocal(k)]!,
       },
-      bar: _barChanged == null ? null : [for (final k in _bar) _syncKeyOf(k)],
-      barChanged: _barChanged,
+      bar: !syncBar || _barChanged == null ? null : [for (final k in _bar) _syncKeyOf(k)],
+      barChanged: syncBar ? _barChanged : null,
     );
     final own = '$syncPrefix$device.json';
     final before = mine();
@@ -996,7 +999,7 @@ class LauncherController extends ChangeNotifier {
         remote.isNotEmpty && !store.metOtherPhones && !_settings.autoArrange && _adoptBusiestGrid(before, rows);
     if (remote.isNotEmpty) await store.setMetOtherPhones(true);
     // A bar changed on another phone after this one's replaces it.
-    final bar = newerBar(remote, _barChanged);
+    final bar = syncBar ? newerBar(remote, _barChanged) : null;
     if (bar != null) _setBar([for (final k in bar.bar!) _localKeys[k] ?? k], changed: bar.barChanged);
     _place();
     notifyListeners();

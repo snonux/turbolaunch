@@ -28,7 +28,8 @@ feature with screenshots and a short recording.
   Only the last 30 days count (you can pick another window), so the grid
   follows what you use now
 * A quick launch bar under the grid for the apps you rarely open but want
-  fast (camera, notes): drag them in, the same bar on all your phones
+  fast (camera, notes): drag them in; each phone keeps its own, or turn on
+  syncing it
 * App shortcuts ("New note", "Navigate home") are search results too
 * Search box always on screen at the bottom; Home clears it
 * Long-press an app: drag it into the quick bar, or remove from or add to

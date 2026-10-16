@@ -475,12 +475,53 @@ void main() {
     expect(b.c.totals[mail.key], 5);
   });
 
+  test('the quick bar syncs only where its sync is on; each phone keeps its own bar by default', () async {
+    var now = DateTime.utc(2026, 10, 16, 8);
+    DateTime clock() => now;
+    final mail = app('mail'), camera = app('camera');
+    final a = await phone([mail, camera], counts: {mail.key: 5}, clock: clock);
+    final b = await phone([mail, camera], clock: clock);
+    expect(a.c.syncConfig.quickBar, isFalse);
+    a.c.addToQuickBar(camera);
+    await syncAll();
+    final file = DeviceSync.decode(utf8.decode(bucket.objects['$kSyncPrefix${a.store.deviceId}.json']!))!;
+    expect(file.bar, isNull, reason: 'off, a phone sends no bar');
+    expect(b.c.quickBar, isEmpty);
+
+    // On at A only: B, still off, does not take A's bar.
+    a.c.updateSyncConfig(a.c.syncConfig.copyWith(quickBar: true));
+    now = now.add(const Duration(minutes: 5));
+    await syncAll();
+    expect(b.c.quickBar, isEmpty);
+
+    // On at both: B takes it; B's later change comes back to A.
+    b.c.updateSyncConfig(b.c.syncConfig.copyWith(quickBar: true));
+    await syncAll();
+    expect([for (final i in b.c.quickBar) i.label], ['camera']);
+    now = now.add(const Duration(minutes: 5));
+    b.c.addToQuickBar(mail, at: 0);
+    await syncAll();
+    expect([for (final i in a.c.quickBar) i.label], ['mail', 'camera']);
+
+    // Off again at B: A's changes no longer reach it.
+    b.c.updateSyncConfig(b.c.syncConfig.copyWith(quickBar: false));
+    now = now.add(const Duration(minutes: 5));
+    a.c.removeFromQuickBar(camera.key);
+    await syncAll();
+    expect([for (final i in b.c.quickBar) i.label], ['mail', 'camera']);
+    expect(SyncConfig.fromJson(b.c.syncConfig.toJson()).quickBar, isFalse);
+    expect(SyncConfig.fromJson(a.c.syncConfig.toJson()).quickBar, isTrue);
+  });
+
   test('the quick bar syncs: the newest change wins, an app a phone lacks is a ghost there', () async {
     var now = DateTime.utc(2026, 10, 15, 8);
     DateTime clock() => now;
     final mail = app('mail'), camera = app('camera'), notes = app('notes');
     final a = await phone([mail, camera, notes], counts: {mail.key: 5, camera.key: 2}, clock: clock);
     final b = await phone([mail, camera], clock: clock);
+    for (final p in [a, b]) {
+      p.c.updateSyncConfig(p.c.syncConfig.copyWith(quickBar: true));
+    }
     expect(a.grid.values, containsAll(['mail', 'camera']));
     expect(a.c.addToQuickBar(camera), isTrue);
     expect(a.c.addToQuickBar(notes, at: 0), isTrue);

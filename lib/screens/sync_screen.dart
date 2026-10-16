@@ -46,9 +46,10 @@ class _SyncScreenState extends State<SyncScreen> {
     super.dispose();
   }
 
-  void _save({bool? enabled}) => _c.updateSyncConfig(
+  void _save({bool? enabled, bool? quickBar}) => _c.updateSyncConfig(
     _c.syncConfig.copyWith(
       enabled: enabled,
+      quickBar: quickBar,
       endpoint: _endpoint.text,
       region: _region.text,
       bucket: _bucket.text,
@@ -144,6 +145,20 @@ class _SyncScreenState extends State<SyncScreen> {
           _field('sync-key-id', _keyId, 'Access key ID'),
           _field('sync-secret', _secret, 'Secret key', secret: true),
           _field('sync-name', _name, "This phone's name", hint: 'Shown on your other phones'),
+          Semantics(
+            identifier: 'sync-quick-bar',
+            child: SwitchListTile(
+              key: const Key('sync-quick-bar'),
+              title: const Text('Sync the quick bar'),
+              subtitle: Text(
+                cfg.quickBar
+                    ? 'Every phone shows the bar changed last; an app a phone lacks shows as a ghost'
+                    : 'Off: each phone keeps a quick bar of its own',
+              ),
+              value: cfg.quickBar,
+              onChanged: (v) => _save(quickBar: v),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.all(16),
             child: Row(

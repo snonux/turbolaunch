@@ -13,7 +13,8 @@
 #   B disables Clock: its cell shows a ghost of Clock (tapping it only says
 #     so), also after a cold start onto the home screen, and Clock comes back
 #     to that cell when it is enabled again.
-#   A puts Camera into its quick bar: after both sync, B's bar has it too.
+#   A puts Camera into its quick bar: after both sync, B's bar does not have
+#     it (the bar's sync is off by default); with it on, after both sync, it does.
 #   B counts launches of the last 7 days, A of 30: after both sync, A's Sync
 #     screen and stats warn about it.
 #
@@ -315,8 +316,9 @@ else
   fail "B: Clock back in its cell (now at $(centre Clock))"
 fi
 
-# A puts Camera into its quick bar (long-press menu); after both sync, B
-# has Camera in its quick bar too.
+# A puts Camera into its quick bar (long-press menu). With the bar's sync off
+# (the default) B keeps its own bar; once both turn it on and sync, B has
+# Camera in its quick bar too.
 on $a
 dump
 xy=$(centre Camera)
@@ -327,15 +329,30 @@ if [ -n "$xy" ]; then
 fi
 dump; shot quick_bar
 if in_bar Camera; then pass "A: Camera in the quick bar"; else fail "A: Camera in the quick bar"; fi
-tap_on "TurboLaunch settings" && sleep 3
-tap_on "On, 1 other phones" && sleep 2
-sync_now 'Synced with 1 other phone'
-home
-on $b
-tap_on "TurboLaunch settings" && sleep 3
-tap_on "On, 1 other phones" && sleep 2
-sync_now 'Synced with 1 other phone'
-home
+for p in $a $b; do
+  on $p
+  tap_on "TurboLaunch settings" && sleep 3
+  tap_on "On, 1 other phones" && sleep 2
+  sync_now 'Synced with 1 other phone'
+  home
+done
+dump; shot quick_bar_own
+if in_bar Camera; then fail "B: keeps its own quick bar with the bar's sync off"; else pass "B: keeps its own quick bar with the bar's sync off"; fi
+# Turns the bar's sync on, on the open Sync screen.
+sync_bar_on() {
+  scroll_to 'resource-id="sync-quick-bar"' down || true
+  tap_on sync-quick-bar && sleep 1
+  dump
+  expect_ui "$ANDROID_SERIAL: quick bar sync on" 'Every phone shows the bar changed last'
+}
+for p in $a $b; do
+  on $p
+  tap_on "TurboLaunch settings" && sleep 3
+  tap_on "On, 1 other phones" && sleep 2
+  sync_bar_on
+  sync_now 'Synced with 1 other phone'
+  home
+done
 dump; shot quick_bar
 if in_bar Camera; then pass "B: Camera in the quick bar from A"; else fail "B: Camera in the quick bar from A"; fi
 

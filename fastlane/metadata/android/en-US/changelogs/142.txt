@@ -1,0 +1,1 @@
+Home screen icons no longer flicker. Android reports app changes often (an app switching one of its parts on or off is enough), and each one used to reload every icon, briefly showing letter tiles. Icons now stay as they are and only an icon that really changed is swapped.

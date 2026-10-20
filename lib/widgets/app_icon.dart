@@ -6,16 +6,30 @@ import '../services/app_source.dart';
 
 /// Icons by app key, fetched once per app and kept for the process lifetime.
 /// The plugin keeps rendered icons on disk too, so a cold start is cheap.
-class IconCache {
+///
+/// A package change ([stale]) does not drop the icons: each keeps being
+/// drawn and is fetched again in the background, and only an icon whose
+/// bytes really changed is replaced (and listeners told). Android reports
+/// package changes often (an app enabling a component is one), and dropping
+/// every icon made the whole grid flicker through letter tiles each time.
+class IconCache extends ChangeNotifier {
   IconCache(this.source);
 
   final AppSource source;
+
+  /// Fetches since the last package change.
   final _icons = <String, Future<Uint8List?>>{};
   final _loaded = <String, Uint8List?>{};
 
   Future<Uint8List?> get(AppEntry app) => _icons.putIfAbsent(app.key, () async {
+    final had = _loaded.containsKey(app.key);
+    final old = _loaded[app.key];
     final bytes = await source.icon(app);
+    // The same icon keeps its bytes object, so the image is not decoded
+    // again; a failed fetch keeps the icon there was.
+    if (had && (bytes == null || _same(old, bytes))) return old;
     _loaded[app.key] = bytes;
+    if (had) notifyListeners();
     return bytes;
   });
 
@@ -23,13 +37,22 @@ class IconCache {
   bool has(AppEntry app) => _loaded.containsKey(app.key);
 
   /// The fetched icon, or null if the app has none or it is not fetched yet.
-  Uint8List? loaded(AppEntry app) => _loaded[app.key];
+  /// After a package change it is fetched again in the background.
+  Uint8List? loaded(AppEntry app) {
+    if (!_icons.containsKey(app.key) && _loaded.containsKey(app.key)) get(app);
+    return _loaded[app.key];
+  }
 
-  /// Drops icons of apps no longer installed or updated since, e.g. after a
-  /// package change.
-  void clear() {
-    _icons.clear();
-    _loaded.clear();
+  /// Apps were installed, removed or updated: icons are checked again the
+  /// next time they are drawn, and kept until a changed one is in.
+  void stale() => _icons.clear();
+
+  static bool _same(Uint8List? a, Uint8List b) {
+    if (a == null || a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 }
 
@@ -51,7 +74,9 @@ class AppIcon extends StatelessWidget {
   ]);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => ListenableBuilder(listenable: cache, builder: (context, _) => _build());
+
+  Widget _build() {
     final pair = app.pair;
     if (pair != null) {
       final half = size * 0.62;

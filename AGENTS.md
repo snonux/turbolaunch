@@ -162,6 +162,10 @@ app list, so most work needs no device.
   holds single taps back for 300 ms; taps on apps stay instant.
 * Icons are rendered once and kept as PNGs in the cache dir
   (`IconDiskCache`), named after the app's key and last update time.
+  On a package change (Android sends them often, e.g. when an app turns a
+  component on or off) `IconCache.stale` keeps every icon drawn and fetches
+  it again in the background; only an icon whose bytes changed is replaced,
+  so the grid never flickers through letter tiles.
 * Work profile apps come from `LauncherApps.getProfiles()`; a paused profile
   still lists its apps, drawn grey, and starting one asks to resume work apps.
   Profile broadcasts (available, unavailable, added, removed) refresh the

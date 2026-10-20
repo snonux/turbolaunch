@@ -617,6 +617,46 @@ void main() {
     expect(find.textContaining('Home row 1, column'), findsNWidgets(2));
   });
 
+  testWidgets('rarely used apps lists unlaunched apps first and uninstalls them', (tester) async {
+    source = FakeAppSource([app('Calendar'), app('Maps'), app('Music'), app('Phone')]);
+    final phone = app('Phone').key;
+    source.details[phone] = PlatformAppDetails(system: true, installed: DateTime.utc(2020));
+    source.details[app('Calendar').key] = PlatformAppDetails(
+      system: false,
+      installed: DateTime.now().subtract(const Duration(days: 3)),
+    );
+    await start(tester, {
+      'launchCounts':
+          '{"org.example.maps/org.example.maps.Main#0": 5, "org.example.music/org.example.music.Main#0": 2}',
+    });
+    await openSettings(tester);
+    await tester.tap(find.byKey(const Key('open-rare')));
+    await tester.pumpAndSettle();
+    expect(find.text('Not launched in the last 30 days'), findsOneWidget);
+    expect(find.text('Installed 3 days ago'), findsOneWidget);
+    expect(find.byKey(ValueKey('rare-$phone')), findsNothing, reason: 'system apps are left out');
+    final calendar = tester.getTopLeft(find.byKey(ValueKey('rare-${app('Calendar').key}')));
+    final music = tester.getTopLeft(find.byKey(ValueKey('rare-${app('Music').key}')));
+    final maps = tester.getTopLeft(find.byKey(ValueKey('rare-${app('Maps').key}')));
+    expect(calendar.dy, lessThan(music.dy), reason: 'never launched first');
+    expect(music.dy, lessThan(maps.dy), reason: 'then fewest launches');
+    expect(find.textContaining('2 launches'), findsOneWidget);
+
+    await tester.tap(find.byKey(ValueKey('rare-uninstall-${app('Calendar').key}')));
+    await tester.pumpAndSettle();
+    expect(source.uninstalled.single.label, 'Calendar');
+
+    await tester.tap(find.byKey(const Key('rare-system')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('rare-$phone')), findsOneWidget);
+    expect(find.byKey(ValueKey('rare-uninstall-$phone')), findsNothing, reason: 'system apps cannot be uninstalled');
+
+    // Uninstalled, Calendar leaves the list.
+    source.apps = [app('Maps'), app('Music'), app('Phone')];
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('rare-${app('Calendar').key}')), findsNothing);
+  });
+
   testWidgets('stats and settings warn when another phone counts another launch window', (tester) async {
     await start(tester, {
       'launchCounts': '{"org.example.maps/org.example.maps.Main#0": 5}',

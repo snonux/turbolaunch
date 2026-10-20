@@ -16,10 +16,11 @@ emulator's own.
 9. [Work profile apps](#work-profile-apps)
 10. [Settings](#settings)
 11. [Launch stats](#launch-stats)
-12. [Moving to a new phone](#moving-to-a-new-phone)
-13. [Sync between phones](#sync-between-phones)
-14. [Privacy and permissions](#privacy-and-permissions)
-15. [Building it yourself](#building-it-yourself)
+12. [Rarely used apps](#rarely-used-apps)
+13. [Moving to a new phone](#moving-to-a-new-phone)
+14. [Sync between phones](#sync-between-phones)
+15. [Privacy and permissions](#privacy-and-permissions)
+16. [Building it yourself](#building-it-yourself)
 
 ## Installing
 
@@ -236,7 +237,7 @@ The sliders button next to the search box opens settings:
 * **Set as home app** opens Android's list of home apps.
 * **Cold start** shows how long TurboLaunch took from start to its first
   frame.
-* **Launch stats**, see below.
+* **Launch stats** and **Rarely used apps**, see below.
 * **Sync**, see [Sync between phones](#sync-between-phones).
 * **Wallpaper**: pick a picture for the home screen, the lock screen or
   both. The home screen shows Android's wallpaper through it.
@@ -257,6 +258,16 @@ Light and dark follow the system setting.
 How often you launched each app within the launch window, most-launched
 first, and which home cell it holds. With [sync](#sync-between-phones) on, the counts are those of all
 your phones, with this phone's share beside each.
+
+## Rarely used apps
+
+Settings, **Rarely used apps**, suggests apps to uninstall: every app not
+launched on this phone within the launch window, then the ten launched
+least, fewest first. Each line says when the app was installed, so a new
+app you have not tried yet stands out, and, with sync, how often your other
+phones launched it. The bin opens Android's uninstall dialog; tap an app for
+its App info. System apps cannot be uninstalled, so they are left out unless
+you turn on **Show system apps**; App info can still turn them off.
 
 ## Moving to a new phone
 

@@ -122,6 +122,10 @@ abstract class AppSource {
   /// Battery level in percent, or -1 where unknown.
   Future<int> battery();
   Future<bool> uninstall(AppEntry app);
+
+  /// Whether each of [apps] is a system app and when it was installed, by
+  /// key; apps the device does not know are left out.
+  Future<Map<String, PlatformAppDetails>> appDetails(List<AppEntry> apps);
   Future<List<ShortcutEntry>> shortcuts();
   Future<bool> startShortcut(ShortcutEntry shortcut);
 
@@ -204,6 +208,10 @@ class PlatformAppSource implements AppSource {
 
   @override
   Future<bool> uninstall(AppEntry app) => _platform.uninstall(app.key);
+
+  @override
+  Future<Map<String, PlatformAppDetails>> appDetails(List<AppEntry> apps) =>
+      _platform.appDetails([for (final a in apps) a.key]);
 
   @override
   Future<List<ShortcutEntry>> shortcuts() async => [
@@ -350,6 +358,16 @@ class FakeAppSource implements AppSource {
     uninstalled.add(app);
     return true;
   }
+
+  /// What [appDetails] reports, by key; apps not in it are not system apps,
+  /// installed at the epoch.
+  final details = <String, PlatformAppDetails>{};
+
+  @override
+  Future<Map<String, PlatformAppDetails>> appDetails(List<AppEntry> apps) async => {
+    for (final a in apps)
+      if (_apps.contains(a)) a.key: details[a.key] ?? PlatformAppDetails(system: false, installed: DateTime.utc(1970)),
+  };
 
   @override
   Future<List<ShortcutEntry>> shortcuts() async => List.of(_shortcuts);

@@ -13,6 +13,7 @@ import '../widgets/app_icon.dart';
 import '../widgets/matched_text.dart';
 import '../widgets/window_warning.dart';
 import 'gesture_settings.dart';
+import 'rare_apps_screen.dart';
 import 'stats_screen.dart';
 import 'sync_screen.dart';
 
@@ -216,6 +217,17 @@ class _SettingsScreenState extends State<SettingsScreen> with WidgetsBindingObse
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => StatsScreen(controller: widget.controller, icons: widget.icons),
+              ),
+            ),
+          ),
+          ListTile(
+            key: const Key('open-rare'),
+            leading: const Icon(Icons.delete_sweep_outlined),
+            title: const Text('Rarely used apps'),
+            subtitle: const Text('Apps you never or seldom launch, to uninstall'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => RareAppsScreen(controller: widget.controller, icons: widget.icons),
               ),
             ),
           ),

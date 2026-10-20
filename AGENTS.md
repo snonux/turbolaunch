@@ -116,6 +116,18 @@ size's cells as they were. A size the grid never had is arranged afresh.
 "Add to home", an import, taking over another phone's grid and turning
 "Arrange by launches" on or off forget the other sizes' cells.
 
+### Rarely used apps
+
+Settings, "Rarely used apps" (`RareAppsScreen`, Paul, 2026-10-18), the only
+way in: installed apps (no pairs) by this phone's launches in the window,
+fewest first (`rarelyUsed`): all never launched, then the
+`rareLaunched` (10) least launched. Other phones' launches are shown, not
+ranked, since uninstalling is per phone. `appDetails` in the plugin gives
+each app's system flag and first install time from its
+`LauncherActivityInfo` (no binder call); system apps are left out unless
+"Show system apps" is on, and have no uninstall button. Uninstalling uses the
+menu's `ACTION_DELETE`.
+
 Apps are identified everywhere by the key `package/activity#userSerial`.
 User serials survive reboots, user handles do not; later phases store launch
 counts and home slots under this key.

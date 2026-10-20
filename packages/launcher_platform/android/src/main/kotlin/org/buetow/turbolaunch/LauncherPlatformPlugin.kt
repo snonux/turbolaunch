@@ -8,6 +8,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherActivityInfo
 import android.content.pm.LauncherApps
 import android.graphics.Bitmap
@@ -196,6 +197,7 @@ class LauncherPlatformPlugin :
         when (call.method) {
             "listApps" -> background(result) { listApps() }
             "icon" -> background(result) { icon(call.key(), call.argument<Int>("size") ?: 144) }
+            "appDetails" -> background(result) { appDetails(call.argument<List<String>>("keys").orEmpty()) }
             "launch" -> result.success(launch(call.key()))
             "appInfo" -> result.success(appInfo(call.key()))
             "startupMillis" ->
@@ -270,6 +272,21 @@ class LauncherPlatformPlugin :
         listed.putAll(found)
         return apps
     }
+
+    /**
+     * Whether each app came with the system, so it cannot be uninstalled, and
+     * when it was first installed, in ms since the epoch. Apps that are gone
+     * are left out.
+     */
+    private fun appDetails(keys: List<String>): Map<String, Map<String, Any>> =
+        keys.mapNotNull { key ->
+            resolve(AppKey.parse(key))?.let { info ->
+                key to mapOf(
+                    "system" to ((info.applicationInfo.flags and ApplicationInfo.FLAG_SYSTEM) != 0),
+                    "installed" to info.firstInstallTime,
+                )
+            }
+        }.toMap()
 
     private fun resolve(key: AppKey?): LauncherActivityInfo? {
         if (key == null) return null

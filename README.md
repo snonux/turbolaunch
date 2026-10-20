@@ -40,7 +40,8 @@ feature with screenshots and a short recording.
   flashlight, quick settings and more
 * App pairs: two apps side by side in split screen, searchable and on the
   grid like any app
-* A stats screen with launch counts and where each app sits
+* A stats screen with launch counts and where each app sits, and a list of
+  the apps you never or rarely launch, to uninstall
 * Home and lock screen wallpapers, grid size and three font sizes in settings
 * Work profile apps included, with a badge (greyed while work apps are paused)
 * Export and import of everything as one JSON file, for a new phone

@@ -11,7 +11,8 @@
 # notification shade, a swipe up the search (and over its results closes it, as does leaving for an app and coming back), and a gesture recorded in settings
 # quick settings, that the Screenshot tile shoots the open app, that Sync now works (against a Garage of its own,
 # started by tool/garage_test.sh when Docker runs), that settings sees
-# the accessibility service and shows the launch stats, that the launch window
+# the accessibility service and shows the launch stats and the rarely used
+# apps, that the launch window
 # can be set and the stats follow it, that an app pair opens in split screen,
 # and that a double-tap on
 # empty home space locks the phone. Screenshots, UI dumps and the log go to
@@ -333,6 +334,28 @@ expect_ui "stats count Settings" 'Settings&#10;Not on home&#10;2'
 expect_ui "stats count the last 30 days" 'Counting launches of the last 30 days'
 adb shell input keyevent KEYCODE_BACK
 sleep 2; dump
+# Rarely used apps: the emulator's apps are all system apps, so they show
+# only when asked for; Settings, launched twice, is among the least
+# launched, and a tap opens its App info.
+tap_on "Rarely used apps" && sleep 2
+dump; shot rare_apps
+expect_ui "rarely used apps open" 'Show system apps'
+tap_on "Show system apps" && sleep 2
+dump; shot rare_apps_system
+expect_ui "rarely used apps list the unlaunched apps" 'Not launched in the last 30 days'
+expect_ui "system apps marked" 'System app'
+scroll_to '2 launches' down || true
+shot rare_apps_least
+expect_ui "Settings among the least launched" '2 launches'
+if tap_on "2 launches"; then
+  sleep 3
+  expect_focus "a tap opens App info" "com.android.settings"
+  adb shell input keyevent KEYCODE_BACK; sleep 2
+fi
+dump
+if grep -q 'Show system apps' "$out/ui.xml"; then adb shell input keyevent KEYCODE_BACK; sleep 2; fi
+dump
+grep -q 'Set as home app' "$out/ui.xml" || { tap_on "TurboLaunch settings" && sleep 3; dump; }
 # The launch window: 30 days by default; set to 7 days the stats count those
 # (every launch here is from today), then back to 30.
 scroll_to 'Count launches of' down || true

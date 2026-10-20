@@ -28,6 +28,17 @@ class PlatformShortcut {
   final String label;
 }
 
+/// What [LauncherPlatform.appDetails] knows about an app.
+class PlatformAppDetails {
+  const PlatformAppDetails({required this.system, required this.installed});
+
+  /// Came with the system, so it can only be turned off, not uninstalled.
+  final bool system;
+
+  /// When it was first installed.
+  final DateTime installed;
+}
+
 /// Which screens a picked wallpaper goes on.
 enum WallpaperTarget { home, lock, both }
 
@@ -118,6 +129,19 @@ class LauncherPlatform {
 
   /// Battery level in percent.
   Future<int> battery() async => await _channel.invokeMethod<int>('battery') ?? -1;
+
+  /// Whether each app is a system app and when it was installed, by key;
+  /// apps that are gone are left out.
+  Future<Map<String, PlatformAppDetails>> appDetails(List<String> keys) async {
+    final raw = await _channel.invokeMapMethod<String, Map<Object?, Object?>>('appDetails', {'keys': keys}) ?? const {};
+    return {
+      for (final MapEntry(:key, :value) in raw.entries)
+        key: PlatformAppDetails(
+          system: value['system'] as bool? ?? false,
+          installed: DateTime.fromMillisecondsSinceEpoch((value['installed'] as num? ?? 0).toInt()),
+        ),
+    };
+  }
 
   /// Opens the system's uninstall confirmation for the app.
   Future<bool> uninstall(String key) async => await _channel.invokeMethod<bool>('uninstall', {'key': key}) ?? false;

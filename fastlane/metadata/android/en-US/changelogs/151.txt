@@ -1,0 +1,1 @@
+Settings has a new Rarely used apps screen: the apps you never or seldom launch on this phone, fewest launches first, each with when it was installed and a button for Android's uninstall dialog. System apps show only when asked for.

@@ -38,6 +38,10 @@ class SearchResult {
 /// One line of the stats screen: launches on every phone, and on this one.
 typedef AppStat = ({AppEntry app, int launches, int here, Cell? cell, bool inBar});
 
+/// One line of the rarely used apps screen: launches on this phone, and with
+/// sync on every phone.
+typedef RareApp = ({AppEntry app, int here, int launches});
+
 /// One app in the quick launch bar: [app] when it is installed here, else
 /// the name of the app another phone put there, drawn as a ghost.
 typedef QuickBarItem = ({String key, AppEntry? app, String label});
@@ -494,6 +498,21 @@ class LauncherController extends ChangeNotifier {
         if ((counts[a.key] ?? 0) > 0)
           (app: a, launches: counts[a.key]!, here: _counts[a.key] ?? 0, cell: cells[a.key], inBar: bar.contains(a.key)),
     ]..sort((a, b) => a.launches != b.launches ? b.launches.compareTo(a.launches) : _byLabel(a.app, b.app));
+  }
+
+  /// How many launched apps [rarelyUsed] lists after the never launched ones.
+  static const rareLaunched = 10;
+
+  /// Installed apps launched least on this phone within the launch window,
+  /// fewest first: every app never launched here, then the [rareLaunched]
+  /// least launched ones, all but those in [skip]. Suggestions to uninstall.
+  List<RareApp> rarelyUsed({Set<String> skip = const {}}) {
+    final all = totals;
+    final rare = [
+      for (final a in _installed)
+        if (!skip.contains(a.key)) (app: a, here: _counts[a.key] ?? 0, launches: all[a.key] ?? 0),
+    ]..sort((a, b) => a.here != b.here ? a.here.compareTo(b.here) : _byLabel(a.app, b.app));
+    return rare.take(rare.where((r) => r.here == 0).length + rareLaunched).toList();
   }
 
   set query(String value) {

@@ -353,7 +353,10 @@ if tap_on "2 launches"; then
   adb shell input keyevent KEYCODE_BACK; sleep 2
 fi
 dump
-if grep -q 'Show system apps' "$out/ui.xml"; then adb shell input keyevent KEYCODE_BACK; sleep 2; fi
+# Back from App info lands on the list again (its title alone is "Rarely used apps").
+if grep -q 'content-desc="Rarely used apps"' "$out/ui.xml"; then
+  adb shell input keyevent KEYCODE_BACK; sleep 2
+fi
 dump
 grep -q 'Set as home app' "$out/ui.xml" || { tap_on "TurboLaunch settings" && sleep 3; dump; }
 # The launch window: 30 days by default; set to 7 days the stats count those

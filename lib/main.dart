@@ -35,13 +35,14 @@ class _TurboLaunchAppState extends State<TurboLaunchApp> {
   void initState() {
     super.initState();
     StartupTimer.measureHomeReady(widget.source, controller);
-    widget.source.events.where((e) => e == AppSourceEvent.packagesChanged).listen((_) => icons.clear());
+    widget.source.events.where((e) => e == AppSourceEvent.packagesChanged).listen((_) => icons.stale());
     controller.refresh();
   }
 
   @override
   void dispose() {
     controller.dispose();
+    icons.dispose();
     super.dispose();
   }
 

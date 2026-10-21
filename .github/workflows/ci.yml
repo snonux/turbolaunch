@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - id: version
         run: echo "flutter=$(tr -d '[:space:]' < .flutter-version)" >> "$GITHUB_OUTPUT"
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ steps.version.outputs.flutter }}
           channel: stable
@@ -48,7 +48,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: subosito/flutter-action@v2
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
         with:
           flutter-version: ${{ steps.version.outputs.flutter }}
           channel: stable
@@ -97,7 +97,7 @@ jobs:
       # Sync now runs against a Garage the script starts in Docker
       # (tool/garage_test.sh), which the emulators reach at 10.0.2.2.
       - name: tool/e2e_android.sh on Android 14
-        uses: reactivecircus/android-emulator-runner@v2
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: 34
           arch: x86_64

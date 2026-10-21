@@ -72,7 +72,7 @@ jobs:
             echo "$abi: $got (want $want)"
             [ "$got" = "$want" ]
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: apks
           path: build/app/outputs/flutter-apk/app-*-release.apk
@@ -106,7 +106,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
           script: tool/e2e_android.sh apks/app-x86_64-release.apk
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-android
           path: build/e2e-android/
